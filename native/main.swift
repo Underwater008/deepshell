@@ -1,12 +1,12 @@
 import Cocoa
 import WebKit
 
-// DSH — a minimal native window for the official DeepSeek Harness web UI.
-// It starts the local service if needed (via dsh-web.sh ensure) and hosts
-// the UI in a WKWebView. No Electron, no dependencies.
+// DeepShell — a native macOS shell for the official DeepSeek Harness web UI.
+// Starts the local service if needed (via deepshell.sh ensure) and hosts
+// the UI in a WKWebView. No Electron, no telemetry, no dependencies.
 
-let STATE = NSHomeDirectory() + "/Library/Application Support/dsh-web-launcher"
-let SCRIPT = STATE + "/dsh-web.sh"
+let STATE = NSHomeDirectory() + "/Library/Application Support/deepshell"
+let SCRIPT = STATE + "/deepshell.sh"
 
 func shell(_ command: String) -> String {
     let task = Process()
@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !urlString.isEmpty, let url = URL(string: urlString) else {
             let alert = NSAlert()
             alert.messageText = "Could not start DeepSeek Harness"
-            alert.informativeText = "Check the log at:\n\(STATE)/run/dsh-web.log"
+            alert.informativeText = "Check the log at:\n\(STATE)/run/deepshell.log"
             alert.alertStyle = .critical
             alert.runModal()
             NSApp.terminate(nil)
@@ -51,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             contentRect: webView.frame,
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
-        window.title = "DeepSeek Harness"
+        window.title = "DeepShell"
         window.minSize = NSSize(width: 900, height: 600)
         window.contentView = webView
         window.center()
@@ -77,8 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .first { $0.hasPrefix("http://") || $0.hasPrefix("https://") } ?? ""
             var image: NSImage? = nil
             if !url.isEmpty, mode != "local" {
-                _ = shell("/opt/homebrew/bin/qrencode -o /tmp/dsh-qr.png -s 8 -m 2 '\(url)'")
-                image = NSImage(contentsOfFile: "/tmp/dsh-qr.png")
+                _ = shell("/opt/homebrew/bin/qrencode -o /tmp/deepshell-qr.png -s 8 -m 2 '\(url)'")
+                image = NSImage(contentsOfFile: "/tmp/deepshell-qr.png")
             }
             // The connect flow restarts the server (new token) — reload the main window.
             let fresh = shell("'\(SCRIPT)' url")
@@ -150,7 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenuItem = NSMenuItem()
         mainMenu.addItem(appMenuItem)
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Quit DeepSeek Harness",
+        appMenu.addItem(withTitle: "Quit DeepShell",
                         action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
 

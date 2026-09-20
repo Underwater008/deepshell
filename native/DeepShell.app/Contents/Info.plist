@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key>
-  <string>DSH</string>
+  <string>DeepShell</string>
   <key>CFBundleDisplayName</key>
-  <string>DSH</string>
+  <string>DeepShell</string>
   <key>CFBundleIdentifier</key>
-  <string>local.dsh-web.app</string>
+  <string>com.github.underwater008.deepshell</string>
   <key>CFBundleVersion</key>
   <string>1</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0</string>
+  <string>0.1.0</string>
   <key>CFBundleExecutable</key>
-  <string>DSH</string>
+  <string>DeepShell</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>

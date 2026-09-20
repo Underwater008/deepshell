@@ -1,35 +1,35 @@
 #!/bin/bash
-# dsh-web.sh — run the official DeepSeek Harness web UI as a macOS service,
+# deepshell.sh — run the official DeepSeek Harness web UI as a macOS service,
 # with phone access over Wi-Fi (LAN) or internet (Cloudflare tunnel).
 #
 # Usage:
-#   dsh-web.sh open        start if needed, open the UI in your browser (Dock app calls this)
-#   dsh-web.sh install     install + start the launchd service (auto-start at login)
-#   dsh-web.sh uninstall   stop and remove the launchd service
-#   dsh-web.sh start|stop|restart|status|url
-#   dsh-web.sh lan         enable phone access on your Wi-Fi and show the QR code
-#   dsh-web.sh local       back to localhost-only
-#   dsh-web.sh tunnel      enable phone access from anywhere (Cloudflare tunnel) + QR
-#   dsh-web.sh tunnel stop disable the tunnel
-#   dsh-web.sh qr          re-show the current phone-access QR code
-#   dsh-web.sh run         foreground mode (launchd uses this; not for humans)
+#   deepshell.sh open        start if needed, open the UI in your browser (Dock app calls this)
+#   deepshell.sh install     install + start the launchd service (auto-start at login)
+#   deepshell.sh uninstall   stop and remove the launchd service
+#   deepshell.sh start|stop|restart|status|url
+#   deepshell.sh lan         enable phone access on your Wi-Fi and show the QR code
+#   deepshell.sh local       back to localhost-only
+#   deepshell.sh tunnel      enable phone access from anywhere (Cloudflare tunnel) + QR
+#   deepshell.sh tunnel stop disable the tunnel
+#   deepshell.sh qr          re-show the current phone-access QR code
+#   deepshell.sh run         foreground mode (launchd uses this; not for humans)
 #
 # NOTE: launchd-spawned processes may not read TCC-protected folders
 # (Documents/Desktop/Downloads), so `install` copies this script to
-# ~/Library/Application Support/dsh-web-launcher/ and launchd runs that copy.
-# Edit the repo copy, then re-run `dsh-web.sh install` to refresh.
+# ~/Library/Application Support/deepshell/ and launchd runs that copy.
+# Edit the repo copy, then re-run `deepshell.sh install` to refresh.
 set -euo pipefail
 
 # ---- config ---------------------------------------------------------------
 DSH_VERSION_SPEC="@latest"        # pin a version instead: "@0.1.5-rc.2"
 PORT=3080
 FORWARD_PORT=3081
-LABEL="local.dsh-web"
+LABEL="local.deepshell"
 # ----------------------------------------------------------------------------
 
-STATE_DIR="$HOME/Library/Application Support/dsh-web-launcher"
+STATE_DIR="$HOME/Library/Application Support/deepshell"
 RUN_DIR="$STATE_DIR/run"
-LOG="$RUN_DIR/dsh-web.log"
+LOG="$RUN_DIR/deepshell.log"
 TUNNEL_LOG="$RUN_DIR/cloudflared.log"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
@@ -102,9 +102,9 @@ cmd_run() {  # foreground; launchd manages this process
 cmd_install() {
   ensure_env
   mkdir -p "$STATE_DIR"
-  if [ "$SELF" != "$STATE_DIR/dsh-web.sh" ]; then
-    cp "$SELF" "$STATE_DIR/dsh-web.sh"
-    chmod +x "$STATE_DIR/dsh-web.sh"
+  if [ "$SELF" != "$STATE_DIR/deepshell.sh" ]; then
+    cp "$SELF" "$STATE_DIR/deepshell.sh"
+    chmod +x "$STATE_DIR/deepshell.sh"
   fi
   cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -116,7 +116,7 @@ cmd_install() {
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>$STATE_DIR/dsh-web.sh</string>
+    <string>$STATE_DIR/deepshell.sh</string>
     <string>run</string>
   </array>
   <key>RunAtLoad</key>
@@ -138,7 +138,7 @@ EOF
   launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
   launchctl bootstrap "gui/$(id -u)" "$PLIST"
   echo "installed and started: $LABEL (auto-starts at login)"
-  echo "runtime copy: $STATE_DIR/dsh-web.sh"
+  echo "runtime copy: $STATE_DIR/deepshell.sh"
 }
 
 cmd_uninstall() {

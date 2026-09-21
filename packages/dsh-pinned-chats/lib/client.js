@@ -54,9 +54,10 @@ window.__ModuleLoader__.load({
       '.pinsb_slot{width:16px;height:20px;color:var(--dsw-alias-label-tertiary);flex:none;justify-content:center;align-items:center;display:inline-flex;margin-right:4px}',
       '.pinsb_dot{width:7px;height:7px;border-radius:50%;display:inline-block}',
       '.pinsb_dotDone{background:var(--dsw-alias-state-business-primary,#3fb950)}',
-      '.pinsb_dotRun{background:var(--dsw-alias-state-business-primary,#3fb950);animation:pinsb_pulse 1.2s ease-in-out infinite}',
       '.pinsb_dotPending{background:var(--dsw-alias-state-warning,#d29922)}',
-      '@keyframes pinsb_pulse{0%,100%{opacity:.35}50%{opacity:1}}',
+      '.pinsb_matrix{color:var(--dsw-static-deepseek-450,#5686fe)}',
+      '.pinsb_cell{fill:currentColor;opacity:.15;animation:pinsb_chase 1s infinite}',
+      '@keyframes pinsb_chase{0%,12.4%{opacity:1}12.5%,24.9%{opacity:.6}25%,37.4%{opacity:.35}37.5%,to{opacity:.15}}',
       '.pinsb_title{text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:14px;line-height:20px;overflow:hidden;flex:1}',
       '.pinsb_sessionRow .pinsb_title{margin:0 6px 0 4px}',
       '.pinsb_titlePin{flex:none;color:var(--dsw-alias-label-tertiary);display:inline-flex;margin-left:2px}',
@@ -79,7 +80,7 @@ window.__ModuleLoader__.load({
       '.pinsb_rail{display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:10px}',
       '.pinsb_railBtn{width:20px;height:20px}',
       '.pinsb_pinSvg{opacity:.85}',
-      '@media (prefers-reduced-motion:reduce){.pinsb_dotRun{animation:none}.pinsb_arrow{transition:none}}',
+      '@media (prefers-reduced-motion:reduce){.pinsb_cell{animation:none}.pinsb_arrow{transition:none}}',
     ].join('\n')
 
     function Icon(props) {
@@ -255,9 +256,20 @@ window.__ModuleLoader__.load({
         },
       }
 
+      var RUN_MATRIX_CELLS = [[0, 0], [4, 0], [8, 0], [8, 4], [8, 8], [4, 8], [0, 8], [0, 4]]
+
+      // Running indicator: the upstream cube-loop chase (eight 2px squares
+      // lighting up in sequence once per second), same as the shipped browser.
+      function RunMatrix() {
+        return h('svg', { className: 'pinsb_matrix', width: 10, height: 10, viewBox: '0 0 10 10', shapeRendering: 'crispEdges', 'aria-hidden': true },
+          RUN_MATRIX_CELLS.map(function (c, i) {
+            return h('rect', { key: c[0] + '-' + c[1], className: 'pinsb_cell', x: c[0], y: c[1], width: 2, height: 2, style: { animationDelay: ((i - RUN_MATRIX_CELLS.length) * 125) + 'ms' } })
+          }))
+      }
+
       function StatusDot(props) {
         if (props.pendingKind) return h('span', { className: 'pinsb_slot', title: 'Waiting for you: ' + props.pendingKind }, h('span', { className: 'pinsb_dot pinsb_dotPending' }))
-        if (props.running) return h('span', { className: 'pinsb_slot', title: 'Running' }, h('span', { className: 'pinsb_dot pinsb_dotRun' }))
+        if (props.running) return h('span', { className: 'pinsb_slot', title: 'Running' }, h(RunMatrix))
         if (props.completed) return h('span', { className: 'pinsb_slot', title: 'Finished' }, h('span', { className: 'pinsb_dot pinsb_dotDone' }))
         return h('span', { className: 'pinsb_slot' })
       }

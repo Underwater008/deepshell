@@ -1,6 +1,6 @@
 {
   "name": "dsh-web-search-searxng",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "SearXNG web-search provider for the DeepSeek Harness ctx.web seam (DeepShell search sidecar)",
   "type": "module",

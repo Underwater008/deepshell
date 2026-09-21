@@ -7,6 +7,11 @@
 // (window.__ModuleLoader__), so it ships without a build step. The card is
 // read-only: writes go through the profile patch layer or settings.yaml,
 // which this card reflects live through the shared settings mirror.
+//
+// The chrome mirrors the built-in plugin cards (see
+// @deepseek-ai/dsh-client-ui-settings-plugins): an <li> disclosure whose
+// header toggles a body, collapsed by default, styled with the same
+// --dsw-alias-* tokens so it sits indistinguishably in the card list.
 window.__ModuleLoader__.load({
   id: 'dsh-web-search-searxng',
   factory: function (require) {
@@ -15,6 +20,7 @@ window.__ModuleLoader__.load({
     var h = React.createElement
 
     var NS = 'web-search-searxng'
+    var TITLE = 'Web search (SearXNG)'
 
     // Minimal snapshot store matching the harness's useSyncExternalStore
     // contract (getSnapshot/subscribe), avoiding a client-graph dependency.
@@ -65,18 +71,45 @@ window.__ModuleLoader__.load({
       return { hooks: { searxngSearch: this.store } }
     }
 
+    // Token-for-token port of the built-in PluginCard stylesheet
+    // (dsh-client-ui-settings-plugins): card/cardOpen, header, headText,
+    // name, description, chevron/chevronOpen, body. The hover and
+    // focus-visible rules have no inline-style equivalent; the disclosure
+    // still carries aria-expanded for assistive tech.
     var styles = {
       card: {
-        border: '.5px solid var(--dsw-alias-border-l2, #333)',
-        borderRadius: '10px',
+        border: '.5px solid var(--dsw-alias-border-l4, #333)',
+        background: 'var(--dsw-alias-bg-layer-3, transparent)',
+        borderRadius: '16px',
+        listStyle: 'none',
+        transition: 'border-color .16s, background .16s',
+      },
+      cardOpen: {
+        background: 'var(--dsw-alias-bg-layer-2, transparent)',
+        borderColor: 'var(--dsw-alias-label-dimmed, #888)',
+      },
+      header: {
+        appearance: 'none',
+        width: '100%',
+        font: 'inherit',
+        color: 'inherit',
+        textAlign: 'left',
+        cursor: 'pointer',
+        background: 'none',
+        border: 0,
+        borderRadius: '12px',
+        alignItems: 'center',
+        gap: '12px',
         padding: '14px 16px',
         display: 'flex',
-        flexDirection: 'column',
-        gap: '4px',
-        maxWidth: '760px',
       },
-      title: { margin: 0, fontSize: '15px', fontWeight: 600 },
-      description: { margin: '0 0 8px', fontSize: '13px', opacity: 0.7 },
+      headText: { flexDirection: 'column', flex: 1, gap: '4px', minWidth: 0, display: 'flex' },
+      name: { color: 'var(--dsw-alias-label-primary, inherit)', fontSize: '15px', fontWeight: 600, lineHeight: 1.4 },
+      description: { color: 'var(--dsw-alias-label-tertiary, inherit)', fontSize: '13px', lineHeight: 1.5 },
+      chevron: { color: 'var(--dsw-alias-label-tertiary, inherit)', flex: 'none', transition: 'transform .16s', display: 'block' },
+      chevronOpen: { transform: 'rotate(180deg)' },
+      body: { borderTop: '.5px solid var(--dsw-alias-border-l2, #333)', margin: '0 16px', paddingBottom: '12px' },
+      readOnly: { color: 'var(--dsw-alias-label-tertiary, inherit)', margin: '12px 0 0', fontSize: '12px', lineHeight: 1.5 },
       row: {
         display: 'flex',
         gap: '8px',
@@ -98,6 +131,31 @@ window.__ModuleLoader__.load({
       hint: { margin: '8px 0 0', fontSize: '12px', opacity: 0.55 },
     }
 
+    function assign(target) {
+      for (var i = 1; i < arguments.length; i++) {
+        var source = arguments[i]
+        if (!source) continue
+        for (var key in source) target[key] = source[key]
+      }
+      return target
+    }
+
+    // 14px outline chevron, matching IconChevronDownOutline14 in the
+    // built-in card header without a client-graph dependency.
+    function Chevron(props) {
+      return h(
+        'svg',
+        { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', 'aria-hidden': true, style: props.style },
+        h('path', {
+          d: 'M3.5 5.25 7 8.75l3.5-3.5',
+          stroke: 'currentColor',
+          strokeWidth: 1.2,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+        }),
+      )
+    }
+
     function Field(props) {
       return h('div', { style: styles.row }, [
         h('span', { key: 'l', style: styles.label }, props.label),
@@ -114,31 +172,59 @@ window.__ModuleLoader__.load({
       var state = props.useSearxngSearch(function (s) {
         return s
       })
+      var openState = React.useState(false)
+      var open = openState[0]
+      var setOpen = openState[1]
+
       var row = state.row
       var value = (row && row.value) || {}
       var user = (row && row.user) || {}
       var engines = value.engines || 'instance defaults'
       var language = value.language || 'instance default'
       var safeSearch = value.safeSearch === undefined ? 'instance default' : String(value.safeSearch)
-      return h('section', { style: styles.card }, [
-        h('h3', { key: 't', style: styles.title }, 'Web search (SearXNG)'),
+
+      return h('li', { style: assign({}, styles.card, open && styles.cardOpen) }, [
         h(
-          'p',
-          { key: 'd', style: styles.description },
-          'Self-hosted metasearch provider (searxng-local) — the native web_search tool, no DeepSeek key needed.',
+          'button',
+          {
+            key: 'header',
+            type: 'button',
+            style: styles.header,
+            'aria-expanded': open,
+            'aria-label': (open ? 'Collapse' : 'Expand') + ': ' + TITLE,
+            onClick: function () {
+              setOpen(!open)
+            },
+          },
+          [
+            h('span', { key: 'text', style: styles.headText }, [
+              h('span', { key: 'name', style: styles.name }, TITLE),
+              h(
+                'span',
+                { key: 'desc', style: styles.description },
+                'Self-hosted metasearch provider (searxng-local) — the native web_search tool, no DeepSeek key needed.',
+              ),
+            ]),
+            h(Chevron, { key: 'chevron', style: assign({}, styles.chevron, open && styles.chevronOpen) }),
+          ],
         ),
-        state.loaded && !row
-          ? h('p', { key: 'missing', style: styles.description }, 'Provider row not mounted — check the profile patch layer.')
+        open
+          ? h('div', { key: 'body', style: styles.body }, [
+              h('p', { key: 'ro', role: 'status', style: styles.readOnly }, 'Read-only — edit the file below; changes apply live.'),
+              state.loaded && !row
+                ? h('p', { key: 'missing', style: styles.readOnly }, 'Provider row not mounted — check the profile patch layer.')
+                : null,
+              h(Field, { key: 'f1', label: 'Endpoint', value: value.baseURL || 'http://127.0.0.1:8888', overridden: user.baseURL !== undefined }),
+              h(Field, { key: 'f2', label: 'Engines', value: engines, overridden: user.engines !== undefined }),
+              h(Field, { key: 'f3', label: 'Language', value: language, overridden: user.language !== undefined }),
+              h(Field, { key: 'f4', label: 'Safe search', value: safeSearch, overridden: user.safeSearch !== undefined }),
+              h(
+                'p',
+                { key: 'h', style: styles.hint },
+                'Edit in ~/.dsh/settings.yaml (web-search-searxng section) or the profile patch layer; changes apply live.',
+              ),
+            ])
           : null,
-        h(Field, { key: 'f1', label: 'Endpoint', value: value.baseURL || 'http://127.0.0.1:8888', overridden: user.baseURL !== undefined }),
-        h(Field, { key: 'f2', label: 'Engines', value: engines, overridden: user.engines !== undefined }),
-        h(Field, { key: 'f3', label: 'Language', value: language, overridden: user.language !== undefined }),
-        h(Field, { key: 'f4', label: 'Safe search', value: safeSearch, overridden: user.safeSearch !== undefined }),
-        h(
-          'p',
-          { key: 'h', style: styles.hint },
-          'Edit in ~/.dsh/settings.yaml (web-search-searxng section) or the profile patch layer; changes apply live.',
-        ),
       ])
     }
 

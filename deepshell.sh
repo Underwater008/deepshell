@@ -309,6 +309,16 @@ search_wire_profile() {
     fi
   fi
 
+  # Local file packages are installed as copies, not live source links.
+  # Refresh existing installs as well as new ones.
+  local installed="$profile_dir/node_modules/dsh-web-search-searxng" file
+  mkdir -p "$installed/lib"
+  for file in package.json index.js lib/client.js; do
+    if ! cmp -s "$repo_dir/packages/dsh-web-search-searxng/$file" "$installed/$file"; then
+      cp "$repo_dir/packages/dsh-web-search-searxng/$file" "$installed/$file"
+    fi
+  done
+
   if ! grep -q 'web-search-searxng' "$patch_file" 2>/dev/null; then
     local rows
     rows="$(cat <<EOF
@@ -321,6 +331,12 @@ search_wire_profile() {
   config:
     searchProvider: searxng-local
     fetchProvider: http
+
+# The keyed DeepSeek search provider stays installed but disabled: web_search
+# is served by the sidecar, and disabling this row removes its settings
+# namespace so Settings → Plugins shows a single web search card.
+- id: web-search-deepseek
+  disabled: true
 
 - insert:
     - id: web-search-searxng

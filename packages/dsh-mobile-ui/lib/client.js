@@ -144,6 +144,16 @@ window.__ModuleLoader__.load({
       '}\n' +
       '@media (max-width: 768px) {\n' +
       '  .dsh-mui-bar { display: flex; }\n' +
+      /* The backdrop is mobile-only chrome. Its rule stays inside this media
+         block (like the drawer's) so no desktop state can ever dim the app —
+         the component also renders it only under the query. */
+      '  .dsh-mui-backdrop {\n' +
+      '    position: fixed;\n' +
+      '    inset: 0;\n' +
+      '    z-index: 40;\n' +
+      '    background: rgb(0 0 0 / .42);\n' +
+      '    animation: dsh-mui-fade-in .22s ease-out;\n' +
+      '  }\n' +
       '}\n' +
       '.dsh-mui-bar > * { pointer-events: auto; }\n' +
       '.dsh-mui-btn {\n' +
@@ -175,13 +185,6 @@ window.__ModuleLoader__.load({
       '  text-overflow: ellipsis;\n' +
       '  pointer-events: none !important;\n' +
       '}\n' +
-      '.dsh-mui-backdrop {\n' +
-      '  position: fixed;\n' +
-      '  inset: 0;\n' +
-      '  z-index: 40;\n' +
-      '  background: rgb(0 0 0 / .42);\n' +
-      '  animation: dsh-mui-fade-in .22s ease-out;\n' +
-      '}\n' +
       '@keyframes dsh-mui-fade-in { from { opacity: 0; } to { opacity: 1; } }\n' +
       '@media (prefers-reduced-motion: reduce) {\n' +
       '  .dsh-mui-backdrop { animation: none; }\n' +
@@ -203,6 +206,27 @@ window.__ModuleLoader__.load({
 
     function mobileMatches() {
       return typeof window.matchMedia === 'function' && window.matchMedia(MOBILE_QUERY).matches
+    }
+
+    /** Live viewport match. The chrome renders nothing on desktop: the
+        harness's own layout owns that experience, so interference is made
+        structurally impossible rather than merely CSS-hidden. */
+    function useMobile() {
+      var pair = useState(mobileMatches)
+      var mobile = pair[0]
+      var setMobile = pair[1]
+      useEffect(function () {
+        if (typeof window.matchMedia !== 'function') return undefined
+        var query = window.matchMedia(MOBILE_QUERY)
+        var update = function () { setMobile(query.matches) }
+        update()
+        if (typeof query.addEventListener === 'function') {
+          query.addEventListener('change', update)
+          return function () { query.removeEventListener('change', update) }
+        }
+        return undefined
+      }, [])
+      return mobile
     }
 
     // ---- effect: viewport meta (Chromium keyboard resize, notch) -----------
@@ -374,6 +398,7 @@ window.__ModuleLoader__.load({
     }
 
     function MobileChrome(props) {
+      var mobile = useMobile()
       var open = useDrawerOpen()
       var sessionTitle = typeof props.useSessions === 'function' ? props.useSessions(selectSessionTitle) : undefined
       var activePanel = typeof props.usePanelInfo === 'function' ? props.usePanelInfo(selectActivePanel) : null
@@ -382,6 +407,10 @@ window.__ModuleLoader__.load({
         : sessionTitle !== undefined
           ? sessionTitle
           : PRODUCT_TITLE
+      // Desktop invariant: mount nothing. An expanded desktop sidebar reads as
+      // "drawer open", so without this gate the backdrop dimmed the whole app
+      // and swallowed every click into toggleSidebar().
+      if (!mobile) return null
       return h(
         React.Fragment,
         null,

@@ -8,15 +8,15 @@ import { fileURLToPath } from 'node:url'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const pkgDir = path.join(here, '..')
 
-async function loadClientBundle() {
+async function loadClientBundle(opts = {}) {
   const src = await readFile(path.join(pkgDir, 'lib', 'client.js'), 'utf8')
   const registrations = []
-  const sandbox = makeSandbox(registrations)
+  const sandbox = makeSandbox(registrations, opts)
   vm.createContext(sandbox)
   vm.runInContext(src, sandbox, { filename: 'lib/client.js' })
   assert.equal(registrations.length, 1, 'the bundle registers exactly one client module')
   assert.equal(registrations[0].id, 'dsh-mobile-ui')
-  return registrations[0].factory
+  return { factory: registrations[0].factory, sandbox }
 }
 
 function makeElementStub(tag = 'div') {
@@ -44,15 +44,22 @@ function makeElementStub(tag = 'div') {
   }
 }
 
-function makeSandbox(registrations) {
+function makeSandbox(registrations, opts = {}) {
   const head = makeElementStub('head')
   const docEl = makeElementStub('html')
   const documentListeners = new Map()
+  // A minimal desktop frame: the shell overlay layer inside the AppFrame grid.
+  // Tests toggle the sidebar through data-sidebar-collapsed on the frame.
+  const frame = makeElementStub('div')
+  if (opts.sidebarCollapsed === true) frame.setAttribute('data-sidebar-collapsed', '')
+  const overlay = makeElementStub('div')
+  overlay.setAttribute('data-shell-overlay', '')
+  frame.appendChild(overlay)
   const document = {
     head,
     documentElement: docEl,
     createElement: (tag) => makeElementStub(tag),
-    querySelector: () => null,
+    querySelector: (selector) => (selector === '[data-shell-overlay]' ? overlay : null),
     addEventListener: (type, fn) => documentListeners.set(type, fn),
     removeEventListener: (type) => documentListeners.delete(type),
     listener: (type) => documentListeners.get(type),
@@ -60,7 +67,7 @@ function makeSandbox(registrations) {
   const windowListeners = new Map()
   const window = {
     innerHeight: 800,
-    matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+    matchMedia: () => ({ matches: opts.mobile === true, addEventListener() {}, removeEventListener() {} }),
     addEventListener: (type, fn) => windowListeners.set(type, fn),
     removeEventListener: (type) => windowListeners.delete(type),
     requestAnimationFrame: (fn) => { fn(); return 1 },
@@ -134,7 +141,7 @@ function makeCtx() {
 }
 
 test('client bundle declares its services and mounts every effect', async () => {
-  const factory = await loadClientBundle()
+  const { factory } = await loadClientBundle({ mobile: true })
   const { React, cleanups } = makeReactMock()
   const mod = factory((id) => {
     assert.equal(id, 'react', 'the bundle only requires react')
@@ -174,7 +181,7 @@ test('client bundle declares its services and mounts every effect', async () => 
 })
 
 test('panel and fallback titles project into the bar', async () => {
-  const factory = await loadClientBundle()
+  const { factory } = await loadClientBundle({ mobile: true })
   const { React } = makeReactMock()
   const mod = factory(() => React)
   const { ctx, slotInjections } = makeCtx()
@@ -193,6 +200,100 @@ test('panel and fallback titles project into the bar', async () => {
   const bareBar = bareTree.children.find((child) => child && child.props && child.props.className === 'dsh-mui-bar')
   const bareTitle = bareBar.children.find((child) => child && child.props && child.props.className === 'dsh-mui-title')
   assert.deepEqual(bareTitle.children, ['DeepSeek Harness'])
+})
+
+test('desktop viewport renders no chrome even with the sidebar expanded', async () => {
+  // Regression: an expanded desktop sidebar reads as "drawer open"; the
+  // backdrop used to mount globally, dimming the app and swallowing clicks.
+  const { factory } = await loadClientBundle({ mobile: false, sidebarCollapsed: false })
+  const { React } = makeReactMock()
+  const mod = factory(() => React)
+  const { ctx, slotInjections } = makeCtx()
+  mod.apply(ctx)
+  const { component } = slotInjections[0].registration
+  const tree = component({
+    useSessions: (select) => select({ current: 's1', byId: { s1: { title: 'Release plan' } } }),
+    usePanelInfo: (select) => select({ activePanelId: null }),
+  })
+  assert.equal(tree, null, 'desktop mounts no mobile chrome at all')
+})
+
+test('mobile viewport shows the backdrop only while the drawer is open', async () => {
+  const { factory } = await loadClientBundle({ mobile: true, sidebarCollapsed: false })
+  const { React } = makeReactMock()
+  const mod = factory(() => React)
+  const { ctx, slotInjections, services } = makeCtx()
+  mod.apply(ctx)
+  const { component } = slotInjections[0].registration
+  const props = {
+    useSessions: (select) => select({ current: undefined, byId: {} }),
+    usePanelInfo: (select) => select({ activePanelId: null }),
+  }
+  const tree = component(props)
+  const backdrop = tree.children.find((child) => child && child.props && child.props.className === 'dsh-mui-backdrop')
+  assert.ok(backdrop, 'backdrop renders on mobile while the drawer is open')
+  backdrop.props.onClick()
+  assert.equal(services.get('layout').toggled, 1, 'backdrop tap collapses the drawer')
+
+  const closedBundle = await loadClientBundle({ mobile: true, sidebarCollapsed: true })
+  const closedMod = closedBundle.factory(() => React)
+  const closed = makeCtx()
+  closedMod.apply(closed.ctx)
+  const closedTree = closed.slotInjections[0].registration.component(props)
+  assert.ok(
+    !closedTree.children.some((child) => child && child.props && child.props.className === 'dsh-mui-backdrop'),
+    'no backdrop once the drawer is closed',
+  )
+})
+
+function stripMediaBlocks(css, query) {
+  const needle = `@media ${query}`
+  let stripped = ''
+  let i = 0
+  while (i < css.length) {
+    const start = css.indexOf(needle, i)
+    if (start === -1) {
+      stripped += css.slice(i)
+      break
+    }
+    stripped += css.slice(i, start)
+    let depth = 0
+    let j = css.indexOf('{', start)
+    for (; j < css.length; j += 1) {
+      if (css[j] === '{') depth += 1
+      else if (css[j] === '}') {
+        depth -= 1
+        if (depth === 0) {
+          j += 1
+          break
+        }
+      }
+    }
+    i = j
+  }
+  return stripped
+}
+
+test('backdrop styling exists only inside the mobile media query', async () => {
+  // Regression: the backdrop rule used to live outside @media (max-width:
+  // 768px), so it painted on desktop. String-needle checks cannot catch
+  // placement; brace-match the rendered stylesheet instead.
+  const { factory, sandbox } = await loadClientBundle()
+  const { React } = makeReactMock()
+  const mod = factory(() => React)
+  const { ctx } = makeCtx()
+  mod.apply(ctx)
+  const styleTag = sandbox.document.head.children.find((child) => child.tag === 'style')
+  assert.ok(styleTag, 'stylesheet installed')
+  const css = styleTag.textContent
+  assert.ok(css.includes('.dsh-mui-backdrop'), 'backdrop rule exists')
+  const outsideMobile = stripMediaBlocks(css, '(max-width: 768px)')
+  const rule = outsideMobile.match(/\.dsh-mui-backdrop\s*\{([^}]*)\}/)
+  const body = rule === null ? '' : rule[1]
+  assert.ok(
+    !/(position|inset|z-index|background)\s*:/.test(body),
+    'no backdrop layout/paint rule outside the mobile media query',
+  )
 })
 
 test('stylesheet targets the keyboard fix, the drawer, and safe areas', async () => {

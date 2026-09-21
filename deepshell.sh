@@ -15,6 +15,7 @@
 #   deepshell.sh mobile install phone-first layout for the web UI (drawer sidebar, top bar, iOS keyboard fix)
 #   deepshell.sh video install  add the video_qa tool (ask questions about local video files)
 #   deepshell.sh video test <clip>  smoke-test the installed video route without the harness
+#   deepshell.sh title install  LLM session titles for reasoning models (512-token budget patch)
 #   deepshell.sh run         foreground mode (launchd uses this; not for humans)
 #
 # NOTE: launchd-spawned processes may not read TCC-protected folders
@@ -125,6 +126,8 @@ cmd_install() {
   if [ -f "$(dirname "$SELF")/packages/dsh-phone-connect/package.json" ]; then
     phone_wire_profile
   fi
+  # Smart session titles matter for any non-DeepSeek route; wire with the service.
+  title_wire_profile
   cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -697,6 +700,79 @@ cmd_video() {
   esac
 }
 
+# ---- smart session titles (LLM-named sessions for reasoning models) ----
+#
+# The harness ships session-title-first-prompt-llm, which names a fresh
+# session from its first message — but its stock 64-token output budget is
+# tuned for the DeepSeek adapter, which force-disables thinking on title
+# requests. Reasoning models (Kimi-K3 and friends over OpenAI-compatible
+# endpoints) spend the whole budget on hidden reasoning, return empty text
+# with finish_reason "length", and the session silently keeps the
+# truncated-first-message fallback. Raising maxOutputTokens to 512 leaves
+# room for reasoning plus the ~5-word title; billing and latency track
+# tokens actually used, not the cap. patchReload: live applies the row
+# without a restart.
+#
+# A patch row REPLACES the target row's whole config (no merging), so all
+# five required fields from the dsh-base row are restated here — a partial
+# override silently invalidates the row and the live reload drops it.
+
+title_wire_profile() {
+  ensure_env
+  local profile_dir="$HOME/.dsh/profiles/web"
+  local patch_file="$profile_dir/cordis.patch.yml"
+  mkdir -p "$profile_dir"
+
+  # Guard on the row id, not the comment above it: survives comment edits.
+  if grep -q 'id: session-title-llm' "$patch_file" 2>/dev/null; then
+    return 0
+  fi
+
+  local rows
+  # The leading blank line in $rows is load-bearing: when $patch_file lacks
+  # a trailing newline it becomes the seam terminator — removing it would
+  # join the last existing line into the comment below and corrupt the YAML.
+  rows="$(cat <<EOF
+
+# DeepShell session titles: raise the LLM title budget so reasoning models
+# can name sessions (stock 64 tokens is consumed by hidden reasoning, the
+# generation rejects, and sessions keep the first-message fallback name).
+# Whole-config replace: every field restated from the dsh-base row.
+- id: session-title-llm
+  config:
+    targetWords: 5
+    targetCjkCharacters: 10
+    maxInputBytes: 4096
+    maxOutputTokens: 512
+    timeoutMs: 60000
+EOF
+)"
+  if [ -f "$patch_file" ] && grep -qE '^\[\][[:space:]]*$' "$patch_file"; then
+    # pristine stub: keep the header comments, drop the empty list marker
+    sed -i '' -e '/^\[\][[:space:]]*$/d' "$patch_file"
+    printf '%s\n' "$rows" >> "$patch_file"
+  elif [ -f "$patch_file" ]; then
+    printf '%s\n' "$rows" >> "$patch_file"
+  else
+    printf '# DeepShell profile patch layer (created by deepshell.sh title install)\n%s\n' "$rows" > "$patch_file"
+  fi
+  echo "title: harness wired in $patch_file (maxOutputTokens 512, applies on live patch reload)"
+}
+
+cmd_title() {
+  case "${1:-status}" in
+    install) title_wire_profile ;;
+    status)
+      if grep -q 'id: session-title-llm' "$HOME/.dsh/profiles/web/cordis.patch.yml" 2>/dev/null; then
+        echo "session titles: wired (session-title-llm maxOutputTokens 512)"
+      else
+        echo "session titles: stock (run: $0 title install)"
+      fi
+      ;;
+    *) echo "usage: $0 title {install|status}" >&2; return 2 ;;
+  esac
+}
+
 cmd_qr() {
   ensure_env
   local u tok host
@@ -721,6 +797,7 @@ case "${1:-open}" in
   phone) cmd_phone "${2:-}" ;;
   mobile) cmd_mobile "${2:-}" ;;
   video) cmd_video "${@:2}" ;;
+  title) cmd_title "${2:-}" ;;
   url) current_url ;;
-  *) echo "usage: $0 {open|install|uninstall|start|stop|stop-all|restart|status|url|local|tunnel [stop]|search [install|start|stop|down|restart|logs|status]|phone [install|status]|mobile [install|uninstall|status]|video [install|status|test]|qr}" >&2; exit 2 ;;
+  *) echo "usage: $0 {open|install|uninstall|start|stop|stop-all|restart|status|url|local|tunnel [stop]|search [install|start|stop|down|restart|logs|status]|phone [install|status]|mobile [install|uninstall|status]|video [install|status|test]|title [install|status]|qr}" >&2; exit 2 ;;
 esac

@@ -25,7 +25,7 @@ func shellResult(_ command: String, includeErrors: Bool = false) -> (output: Str
 
 func shell(_ command: String) -> String { shellResult(command).output }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
     private var window: NSWindow!
     private var webView: WKWebView!
     private var currentURL: URL?
@@ -59,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
         webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 1440, height: 900))
         webView.navigationDelegate = self
+        webView.uiDelegate = self
         webView.load(URLRequest(url: url))
 
         window = NSWindow(
@@ -105,19 +106,81 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         if task.isRunning { task.terminate() }
     }
 
-    // Keep the Settings card in place while the user approves Tailscale in
-    // their normal browser, where their provider login already lives.
+    // MARK: - Link handling
+
+    // Links in the chat render with target=_blank; WKWebView routes those
+    // clicks (and window.open) through createWebViewWith, so without a
+    // uiDelegate they die silently — and the right-click menu's open item
+    // with them. External links open in the default browser; same-origin
+    // ones load in place — they must, because only this webview holds the
+    // auth cookie (a browser without ?token= gets a 401). Either way no
+    // child window is made. Window → Back (Cmd+[) returns from any
+    // in-place load that replaced the app view.
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                 for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        guard let url = navigationAction.request.url, let scheme = url.scheme?.lowercased() else { return nil }
+        if scheme == "http" || scheme == "https" {
+            if isExternal(url, relativeTo: webView) {
+                NSWorkspace.shared.open(url)
+            } else {
+                webView.load(URLRequest(url: url))
+            }
+        } else if !Self.webViewSchemes.contains(scheme) {
+            NSWorkspace.shared.open(url)
+        }
+        return nil
+    }
+
+    // Same-tab link clicks: keep the shell on the harness UI and send
+    // anything off-origin (chat links, Tailscale approval, OAuth) to the
+    // user's normal browser, where their provider logins already live.
+    // mailto:, tel: and other non-web schemes go to the system as well —
+    // WKWebView only fails on them silently.
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        if navigationAction.navigationType == .linkActivated,
-           let url = navigationAction.request.url, url.scheme == "https",
-           let host = url.host, ["tailscale.com", "login.tailscale.com"].contains(host) {
+        guard navigationAction.navigationType == .linkActivated,
+              let url = navigationAction.request.url, let scheme = url.scheme?.lowercased() else {
+            decisionHandler(.allow)
+            return
+        }
+        if scheme == "http" || scheme == "https" {
+            if isExternal(url, relativeTo: webView) {
+                NSWorkspace.shared.open(url)
+                decisionHandler(.cancel)
+            } else {
+                decisionHandler(.allow)
+            }
+        } else if !Self.webViewSchemes.contains(scheme) {
             NSWorkspace.shared.open(url)
             decisionHandler(.cancel)
         } else {
             decisionHandler(.allow)
         }
     }
+
+    // Schemes the webview itself loads; anything else on a link click
+    // (mailto:, tel:, app URL schemes…) belongs to the system.
+    private static let webViewSchemes: Set<String> = ["http", "https", "about", "blob", "data", "file"]
+
+    // External = a different origin (scheme, host, or port) than the page
+    // the click came from. The anchor is the LIVE webview URL, falling
+    // back to the URL the shell launched with: JS-driven top-frame
+    // navigations (.other — the Remote switchboard's peer hand-off,
+    // OAuth round-trips) are deliberately not gated, so the anchor must
+    // follow the shell to whichever origin it legitimately sits on.
+    private func isExternal(_ url: URL, relativeTo webView: WKWebView) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), let host = url.host,
+              let anchor = webView.url ?? currentURL,
+              let anchorScheme = anchor.scheme?.lowercased(), let anchorHost = anchor.host else { return true }
+        let port = url.port ?? (scheme == "https" ? 443 : 80)
+        let anchorPort = anchor.port ?? (anchorScheme == "https" ? 443 : 80)
+        return scheme != anchorScheme || host != anchorHost || port != anchorPort
+    }
+
+    // The window has no navigation chrome; these are the way back from an
+    // in-place load that replaced the harness UI (raw JSON, a peer page).
+    @objc private func goBack() { webView?.goBack() }
+    @objc private func goForward() { webView?.goForward() }
 
     // MARK: - Phone connect
 
@@ -292,6 +355,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         let windowMenuItem = NSMenuItem()
         mainMenu.addItem(windowMenuItem)
         let windowMenu = NSMenu(title: "Window")
+        let back = NSMenuItem(title: "Back", action: #selector(goBack), keyEquivalent: "[")
+        back.target = self
+        windowMenu.addItem(back)
+        let forward = NSMenuItem(title: "Forward", action: #selector(goForward), keyEquivalent: "]")
+        forward.target = self
+        windowMenu.addItem(forward)
+        windowMenu.addItem(.separator())
         windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         windowMenu.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")

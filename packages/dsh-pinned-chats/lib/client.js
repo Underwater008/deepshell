@@ -117,9 +117,9 @@ window.__ModuleLoader__.load({
       }
       if (props.name === 'pin') {
         return h('svg', Object.assign({}, base, { className: 'pinsb_pinSvg' }),
-          h('g', { transform: 'rotate(45 8 8)', fill: props.filled ? 'currentColor' : 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round' },
-            h('rect', { x: 5.2, y: 2, width: 5.6, height: 4.6, rx: 1.4 }),
-            h('line', { x1: 8, y1: 6.6, x2: 8, y2: 13.6 })))
+          h('g', { transform: 'rotate(45 8 8)', fill: props.filled ? 'currentColor' : 'none', stroke: 'currentColor', strokeWidth: 1.3, strokeLinejoin: 'round' },
+            h('rect', { x: 5.4, y: 1.8, width: 5.2, height: 4.4, rx: 2.2 }),
+            h('path', { d: 'M7.1 6.2 L8 14.2 L8.9 6.2 Z' })))
       }
       if (props.name === 'close') {
         return h('svg', Object.assign({}, base, { stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' }),

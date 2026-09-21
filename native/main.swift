@@ -7,28 +7,34 @@ import WebKit
 
 let STATE = NSHomeDirectory() + "/Library/Application Support/deepshell"
 let SCRIPT = STATE + "/deepshell.sh"
+let KEEP_RUNNING = STATE + "/keep-running"
 
-func shell(_ command: String) -> String {
+func shellResult(_ command: String, includeErrors: Bool = false) -> (output: String, status: Int32) {
     let task = Process()
     let pipe = Pipe()
     task.executableURL = URL(fileURLWithPath: "/bin/bash")
     task.arguments = ["-l", "-c", command]
     task.standardOutput = pipe
-    task.standardError = FileHandle.nullDevice
-    do { try task.run() } catch { return "" }
+    task.standardError = includeErrors ? pipe : FileHandle.nullDevice
+    do { try task.run() } catch { return (error.localizedDescription, -1) }
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
     task.waitUntilExit()
-    return String(data: data, encoding: .utf8)?
-        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return (String(data: data, encoding: .utf8)?
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? "", task.terminationStatus)
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+func shell(_ command: String) -> String { shellResult(command).output }
+
+final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     private var window: NSWindow!
     private var webView: WKWebView!
+    private var currentURL: URL?
     private var qrPanel: NSPanel?
     private var qrImageView: NSImageView?
     private var qrMessage: NSTextField?
     private var qrURLField: NSTextField?
+    private var servicesStatusItem: NSMenuItem?
+    private var keepRunningItem: NSMenuItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMainMenu()
@@ -43,8 +49,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
             return
         }
+        currentURL = url
+
+        // The search sidecar follows the app lifecycle: quit stops it
+        // (stop-all), launch revives it. No-op when it isn't installed.
+        DispatchQueue.global(qos: .utility).async {
+            _ = shell("docker start deepshell-searxng 2>/dev/null || true")
+        }
 
         webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 1440, height: 900))
+        webView.navigationDelegate = self
         webView.load(URLRequest(url: url))
 
         window = NSWindow(
@@ -54,16 +68,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "DeepShell"
         window.minSize = NSSize(width: 900, height: 600)
         window.contentView = webView
+        // The window (and its web session) survives close: dock click reopens
+        // it. Only Quit tears services down.
+        window.isReleasedWhenClosed = false
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    // Closing the window puts the app away; services keep running and agent
+    // tasks continue. Cmd+Q / right-click Quit stops them (see below).
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        return true
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        // Opt-out toggle: Services → Keep Services Running After Quit.
+        if FileManager.default.fileExists(atPath: KEEP_RUNNING) { return }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/bash")
+        task.arguments = ["-l", "-c", "'\(SCRIPT)' stop-all"]
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
+        do { try task.run() } catch { return }
+        // Wait, but never hang quit: 8s covers launchctl + docker stop.
+        let deadline = Date().addingTimeInterval(8)
+        while task.isRunning && Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+        if task.isRunning { task.terminate() }
+    }
+
+    // Keep the Settings card in place while the user approves Tailscale in
+    // their normal browser, where their provider login already lives.
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if navigationAction.navigationType == .linkActivated,
+           let url = navigationAction.request.url, url.scheme == "https",
+           let host = url.host, ["tailscale.com", "login.tailscale.com"].contains(host) {
+            NSWorkspace.shared.open(url)
+            decisionHandler(.cancel)
+        } else {
+            decisionHandler(.allow)
+        }
+    }
 
     // MARK: - Phone connect
 
-    @objc private func connectLAN()    { phoneConnect("lan") }
     @objc private func connectTunnel() { phoneConnect("tunnel") }
     @objc private func disconnectAll() { phoneConnect("local") }
 
@@ -72,21 +129,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     message: "Working… (the server restarts, give it up to a minute)",
                     url: "", image: nil)
         DispatchQueue.global(qos: .userInitiated).async {
-            let out = shell("'\(SCRIPT)' \(mode)")
+            let result = shellResult("'\(SCRIPT)' \(mode)", includeErrors: true)
+            let out = result.output
             let url = out.components(separatedBy: .whitespacesAndNewlines)
-                .first { $0.hasPrefix("http://") || $0.hasPrefix("https://") } ?? ""
+                .first {
+                    guard let parts = URLComponents(string: $0), parts.scheme == "https" else { return false }
+                    return parts.queryItems?.contains { $0.name == "token" && !($0.value ?? "").isEmpty } == true
+                } ?? ""
             var image: NSImage? = nil
             if !url.isEmpty, mode != "local" {
-                _ = shell("/opt/homebrew/bin/qrencode -o /tmp/deepshell-qr.png -s 8 -m 2 '\(url)'")
-                image = NSImage(contentsOfFile: "/tmp/deepshell-qr.png")
+                let qrPath = NSTemporaryDirectory() + "deepshell-qr-\(UUID().uuidString).png"
+                _ = shell("PATH=/opt/homebrew/bin:/usr/local/bin:$PATH qrencode -o '\(qrPath)' -s 8 -m 2 '\(url)'")
+                image = NSImage(contentsOfFile: qrPath)
+                try? FileManager.default.removeItem(atPath: qrPath)
             }
             // The connect flow restarts the server (new token) — reload the main window.
             let fresh = shell("'\(SCRIPT)' url")
             DispatchQueue.main.async {
                 if !fresh.isEmpty, let u = URL(string: fresh) {
+                    self.currentURL = u
                     self.webView.load(URLRequest(url: u))
                 }
-                if mode == "local" {
+                if result.status != 0 {
+                    self.showQRPanel(title: "Phone Connect",
+                                     message: "Could not apply the change:\n\(out.suffix(400))",
+                                     url: "", image: nil)
+                } else if mode == "local" {
                     self.showQRPanel(title: "Phone Connect",
                                      message: "Phone access disabled — back to localhost only.",
                                      url: "", image: nil)
@@ -96,7 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                      url: "", image: nil)
                 } else {
                     self.showQRPanel(
-                        title: mode == "lan" ? "Wi-Fi Connect" : "Internet Connect",
+                        title: "Phone Connect",
                         message: "Scan with your phone camera. The URL is the login credential — treat it like a password.",
                         url: url, image: image)
                 }
@@ -142,6 +210,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    // MARK: - Services menu
+
+    @objc private func toggleKeepRunning() {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: KEEP_RUNNING) {
+            try? fm.removeItem(atPath: KEEP_RUNNING)
+        } else {
+            fm.createFile(atPath: KEEP_RUNNING, contents: Data())
+        }
+        refreshServicesMenu()
+    }
+
+    @objc private func stopServicesNow() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = shell("'\(SCRIPT)' stop-all")
+            DispatchQueue.main.async { self.refreshServicesMenu() }
+        }
+    }
+
+    private func refreshServicesMenu() {
+        keepRunningItem?.state = FileManager.default.fileExists(atPath: KEEP_RUNNING) ? .on : .off
+        let harnessUp = shell("lsof -iTCP:3080 -sTCP:LISTEN -P >/dev/null 2>&1 && echo yes || true") == "yes"
+        let searchUp = shell("curl -sf -m 2 -o /dev/null http://127.0.0.1:8890/healthz && echo yes || true") == "yes"
+        servicesStatusItem?.title = "Harness: \(harnessUp ? "running" : "stopped") · Search: \(searchUp ? "running" : "stopped")"
+    }
+
     // MARK: - Menu
 
     private func buildMainMenu() {
@@ -163,13 +257,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editMenuItem.submenu = editMenu
 
+        let servicesMenuItem = NSMenuItem()
+        mainMenu.addItem(servicesMenuItem)
+        let servicesMenu = NSMenu(title: "Services")
+        servicesMenu.delegate = self
+        let statusItem = NSMenuItem(title: "…", action: nil, keyEquivalent: "")
+        statusItem.isEnabled = false
+        servicesMenu.addItem(statusItem)
+        servicesStatusItem = statusItem
+        servicesMenu.addItem(.separator())
+        let keep = NSMenuItem(title: "Keep Services Running After Quit",
+                              action: #selector(toggleKeepRunning), keyEquivalent: "")
+        keep.target = self
+        servicesMenu.addItem(keep)
+        keepRunningItem = keep
+        let stop = NSMenuItem(title: "Stop Services Now",
+                              action: #selector(stopServicesNow), keyEquivalent: "")
+        stop.target = self
+        servicesMenu.addItem(stop)
+        servicesMenuItem.submenu = servicesMenu
+
         let phoneMenuItem = NSMenuItem()
         mainMenu.addItem(phoneMenuItem)
         let phoneMenu = NSMenu(title: "Phone")
-        let lan = NSMenuItem(title: "Wi-Fi Connect (LAN)…", action: #selector(connectLAN), keyEquivalent: "")
-        lan.target = self
-        phoneMenu.addItem(lan)
-        let tun = NSMenuItem(title: "Internet Connect (Tunnel)…", action: #selector(connectTunnel), keyEquivalent: "")
+        let tun = NSMenuItem(title: "Connect Phone…", action: #selector(connectTunnel), keyEquivalent: "")
         tun.target = self
         phoneMenu.addItem(tun)
         phoneMenu.addItem(.separator())
@@ -188,6 +299,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.mainMenu = mainMenu
         NSApp.windowsMenu = windowMenu
+    }
+}
+
+extension AppDelegate: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu.title == "Services" { refreshServicesMenu() }
     }
 }
 

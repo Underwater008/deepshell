@@ -1,0 +1,18 @@
+{
+  "name": "dsh-video-qa-moonshot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "video_qa tool for the DeepSeek Harness: ask questions about local video files through video-capable Kimi models (Moonshot ms:// upload or OpenAI-compatible video_url)",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "default": "./index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js"
+  ],
+  "license": "MIT"
+}

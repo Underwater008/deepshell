@@ -1,0 +1,38 @@
+# SearXNG settings template for the DeepShell search sidecar.
+# `deepshell.sh search install` copies this to settings.yml (replacing
+# __SEARXNG_SECRET_KEY__ with `openssl rand -hex 32`) when settings.yml is
+# missing. Edit the template to change defaults for fresh installs; edit
+# settings.yml to change the running instance.
+
+use_default_settings: true
+
+server:
+  secret_key: "__SEARXNG_SECRET_KEY__"
+  # localhost single-user instance: no bot limiter, no public registration
+  limiter: false
+  image_proxy: true
+  method: "GET"
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  # json is what the harness's web_search provider consumes
+  formats:
+    - html
+    - json
+
+ui:
+  static_use_hash: true
+  default_theme: simple
+
+# Engines listed here merge over the defaults by name: entries below are
+# enabled, everything else stays at upstream defaults. `google` ships disabled
+# upstream but is the best general/news engine — enable it. github/mdn join
+# arxiv/wikipedia for the agent's technical queries.
+engines:
+  - name: google
+    disabled: false
+  - name: github
+    disabled: false
+  - name: mdn
+    disabled: false

@@ -1,0 +1,26 @@
+# DeepShell search sidecar: self-hosted SearXNG metasearch for the harness's
+# web_search tool. No API keys, no per-search fees, no tracking — SearXNG
+# aggregates public engines and answers JSON on 127.0.0.1:8890.
+#
+# Port 8890 (not the common 8888) so DeepShell never fights another app's
+# SearXNG: owning the instance means owning the engine set and ranking.
+#
+# Managed through `deepshell.sh search {install|start|stop|restart|status}`.
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: deepshell-searxng
+    restart: unless-stopped
+    ports:
+      # localhost only, same policy as the harness itself
+      - "127.0.0.1:8890:8080"
+    volumes:
+      - ./settings:/etc/searxng:rw
+    environment:
+      - BASE_URL=http://127.0.0.1:8890/
+    logging:
+      driver: json-file
+      options:
+        max-size: "1m"
+        max-file: "1"

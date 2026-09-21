@@ -1,0 +1,36 @@
+{
+  "name": "dsh-phone-connect",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Persistent browser-only phone access for DeepShell through Tailscale Funnel",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "default": "./index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "lib/client.js",
+    "lib/persistent.js",
+    "lib/tailscale.js",
+    "scripts/phone-runtime.mjs"
+  ],
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

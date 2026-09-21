@@ -1,0 +1,30 @@
+{
+  "name": "dsh-web-search-searxng",
+  "version": "0.2.0",
+  "private": true,
+  "description": "SearXNG web-search provider for the DeepSeek Harness ctx.web seam (DeepShell search sidecar)",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "default": "./index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "lib/client.js"
+  ],
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "license": "MIT"
+}

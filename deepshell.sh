@@ -12,6 +12,7 @@
 #   deepshell.sh tunnel stop disable the tunnel
 #   deepshell.sh qr          re-show the current phone-access QR code
 #   deepshell.sh phone install  put the same controls on a Settings → Plugins card in the web UI
+#   deepshell.sh mobile install phone-first layout for the web UI (drawer sidebar, top bar, iOS keyboard fix)
 #   deepshell.sh video install  add the video_qa tool (ask questions about local video files)
 #   deepshell.sh video test <clip>  smoke-test the installed video route without the harness
 #   deepshell.sh run         foreground mode (launchd uses this; not for humans)
@@ -477,6 +478,106 @@ cmd_phone() {
   esac
 }
 
+# ---- mobile UI (phone-first layout + iOS keyboard fix) ----
+#
+# packages/dsh-mobile-ui is a browser-only plugin: off-canvas sidebar drawer
+# with a compact top bar (hamburger / title / new chat), and the visualViewport
+# tracking that stops the page jumping when the iOS keyboard opens. The host
+# half is a no-op and the profile sets patchReload: live, so unlike
+# phone-connect no harness restart is needed — refresh the phone's page.
+# Skipping the restart also keeps the running session (and any active agent
+# work) alive.
+
+mobile_wire_profile() {
+  ensure_env
+  local repo_dir profile_dir patch_file
+  repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  profile_dir="$HOME/.dsh/profiles/web"
+  patch_file="$profile_dir/cordis.patch.yml"
+
+  [ -f "$repo_dir/packages/dsh-mobile-ui/package.json" ] || {
+    echo "mobile: $repo_dir/packages/dsh-mobile-ui missing — run '$0 mobile install' from the deepshell repo" >&2
+    return 1
+  }
+
+  if ! grep -q '"dsh-mobile-ui"' "$profile_dir/package.json" 2>/dev/null; then
+    echo "mobile: installing the mobile-UI plugin into the web profile..."
+    if ! npx -y "@deepseek-ai/dsh${DSH_VERSION_SPEC}" plugin --profile web add \
+        "file:$repo_dir/packages/dsh-mobile-ui"; then
+      echo "mobile: plugin install failed — run '$0 install' first so the profile exists" >&2
+      return 1
+    fi
+  fi
+
+  # Local file packages are installed as copies, not live source links.
+  # Refresh existing installs as well as new ones.
+  local installed="$profile_dir/node_modules/dsh-mobile-ui" file
+  mkdir -p "$installed/lib"
+  for file in package.json index.js lib/client.js; do
+    if ! cmp -s "$repo_dir/packages/dsh-mobile-ui/$file" "$installed/$file"; then
+      cp "$repo_dir/packages/dsh-mobile-ui/$file" "$installed/$file"
+    fi
+  done
+
+  if ! grep -q 'dsh-mobile-ui' "$patch_file" 2>/dev/null; then
+    local rows
+    rows="$(cat <<EOF
+
+# DeepShell mobile UI: phone-first chrome for the web UI (packages/dsh-mobile-ui
+# in the deepshell repo) — off-canvas sidebar drawer, compact top bar, and the
+# visualViewport tracking that keeps the page from jumping when the iOS
+# keyboard opens. Browser-only; applies on the next page load, no restart.
+- insert:
+    - id: mobile-ui
+      name: dsh-mobile-ui
+EOF
+)"
+    if [ -f "$patch_file" ] && grep -qE '^\[\][[:space:]]*$' "$patch_file"; then
+      sed -i '' -e '/^\[\][[:space:]]*$/d' "$patch_file"
+      printf '%s\n' "$rows" >> "$patch_file"
+    elif [ -f "$patch_file" ]; then
+      printf '%s\n' "$rows" >> "$patch_file"
+    else
+      printf '# DeepShell profile patch layer (created by deepshell.sh mobile install)\n%s\n' "$rows" > "$patch_file"
+    fi
+    echo "mobile: harness wired in $patch_file"
+  fi
+}
+
+mobile_unwire_profile() {
+  local patch_file="$HOME/.dsh/profiles/web/cordis.patch.yml"
+  grep -q 'dsh-mobile-ui' "$patch_file" 2>/dev/null || {
+    echo "mobile: not wired (nothing to remove)"
+    return 0
+  }
+  # Drop the comment block + insert row in one range; the leftover blank line
+  # and the node_modules copy are inert without the row.
+  sed -i '' -e '/# DeepShell mobile UI:/,/name: dsh-mobile-ui/d' "$patch_file"
+  echo "mobile: row removed from $patch_file — refresh the phone's page (patchReload: live unmounts it)"
+}
+
+cmd_mobile() {
+  case "${1:-status}" in
+    install)
+      mobile_wire_profile || return 1
+      sync_runtime
+      echo "mobile: installed — refresh the phone's page (no harness restart needed)"
+      cmd_mobile status
+      ;;
+    uninstall)
+      mobile_unwire_profile
+      ;;
+    status)
+      if grep -q 'dsh-mobile-ui' "$HOME/.dsh/profiles/web/cordis.patch.yml" 2>/dev/null; then
+        echo "mobile UI: wired (cordis.patch.yml row 'mobile-ui')"
+      else
+        echo "mobile UI: MISSING (run: $0 mobile install)"
+      fi
+      ;;
+    *) echo "usage: $0 mobile {install|uninstall|status}" >&2; return 2 ;;
+  esac
+}
+
 # ---- video_qa tool (local video understanding through video-capable Kimi) ----
 #
 # packages/dsh-video-qa-moonshot registers a `video_qa` tool: the agent hands
@@ -602,7 +703,8 @@ case "${1:-open}" in
   tunnel) cmd_tunnel "${2:-}" ;;
   search) cmd_search "${2:-}" ;;
   phone) cmd_phone "${2:-}" ;;
+  mobile) cmd_mobile "${2:-}" ;;
   video) cmd_video "${@:2}" ;;
   url) current_url ;;
-  *) echo "usage: $0 {open|install|uninstall|start|stop|stop-all|restart|status|url|local|tunnel [stop]|search [install|start|stop|down|restart|logs|status]|phone [install|status]|video [install|status|test]|qr}" >&2; exit 2 ;;
+  *) echo "usage: $0 {open|install|uninstall|start|stop|stop-all|restart|status|url|local|tunnel [stop]|search [install|start|stop|down|restart|logs|status]|phone [install|status]|mobile [install|uninstall|status]|video [install|status|test]|qr}" >&2; exit 2 ;;
 esac

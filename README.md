@@ -16,6 +16,9 @@ exactly what it is.
 - **Phone connect** from Settings or the menu bar: persistent browser access through Tailscale
   Funnel, with QR codes — the harness itself stays on 127.0.0.1, the way
   upstream intends
+- **Phone-first web UI**: a mobile chrome for the harness page — off-canvas
+  sidebar drawer, compact top bar, and the keyboard fix that stops iOS from
+  jumping the screen while you type (`packages/dsh-mobile-ui`)
 - Lets you use **any OpenAI-compatible provider** the engine supports (custom
   baseURL, `apiKeyEnv` credential refs, custom headers) — self-hosted vLLM,
   RunPod, Modal, Ollama, whatever you run
@@ -55,12 +58,40 @@ The app bundle currently requires the setup above on each Mac; copying the
 ./deepshell.sh tunnel       # permanent phone address + pairing QR
 ./deepshell.sh local        # back to localhost-only
 ./deepshell.sh phone install    # refresh the Settings card and restart the harness
+./deepshell.sh mobile install   # phone-first UI: drawer + top bar + keyboard fix (no restart)
 ./deepshell.sh search install   # SearXNG sidecar + harness wiring, one idempotent command
 ./deepshell.sh search status    # health + live query test + wiring check (start|stop|restart|logs too)
 ./deepshell.sh uninstall
 ```
 
 The **Phone** menu in the app does the same things with a QR window.
+
+### Mobile UI (phone-first layout + keyboard fix)
+
+`./deepshell.sh mobile install` wires `packages/dsh-mobile-ui` into the web
+profile — a browser-only plugin that reshapes the harness page on screens up
+to 768px, ChatGPT-iOS style:
+
+- The left rail disappears. A compact top bar (blur, notch-aware) takes over:
+  **hamburger** slides the sidebar in as an off-canvas drawer over a dimmed
+  backdrop; the center shows the session title; **✎** starts a new chat.
+  Picking a session, a search result, or New chat closes the drawer.
+- **The screen no longer jumps when you type.** iOS Safari still ignores
+  `interactive-widget=resizes-content` (WebKit bug 259770), so the plugin
+  tracks `window.visualViewport` into CSS variables, sizes the app to the
+  *visible* area, and counter-translates Safari's keyboard pan — the composer
+  simply docks above the keyboard. Text inputs also get a 16px minimum so iOS
+  stops auto-zooming on focus. (Chromium/Android gets the standard
+  `interactive-widget=resizes-content` meta instead.)
+- Composer margins slim down, drag handles disappear, and the home indicator /
+  notch safe areas are respected.
+
+It applies on the next page load — no harness restart, no approval prompt
+(it's a trusted composition row, like the phone-connect card). Desktop
+windows are untouched; narrow any browser window below 768px to preview it.
+`./deepshell.sh mobile uninstall` removes the patch row (equally live) if an
+upstream release ever ships its own mobile layout or you want stock behavior
+back.
 
 ### Phone connect from the web UI (Settings card)
 

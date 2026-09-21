@@ -1,0 +1,32 @@
+{
+  "name": "dsh-pinned-chats",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pinned chats & projects for the DeepSeek Harness web UI: a Pinned section atop the sidebar browser, hover pin toggles and row menus, persisted through a Host storage domain",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "default": "./index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "lib/client.js"
+  ],
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ],
+      "platform": "web"
+    }
+  },
+  "license": "MIT"
+}

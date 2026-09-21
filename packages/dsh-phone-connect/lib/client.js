@@ -372,6 +372,20 @@ window.__ModuleLoader__.load({
         ),
       )
 
+      if (snapshot && snapshot.phoneUrl) {
+        children.push(
+          h(
+            'p',
+            { key: 'remote', style: styles.hint },
+            [
+              'On the phone, open ',
+              h('a', { key: 'remote-link', href: '/api/phone-connect/app' }, 'Remote'),
+              ' — a mobile switchboard for every DeepShell machine on the tailnet.',
+            ],
+          ),
+        )
+      }
+
       return h('section', { style: styles.card }, children)
     }
 

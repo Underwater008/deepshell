@@ -35,6 +35,8 @@ import { constants as fsConstants, promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { TailscaleConnection, funnelSetupUrl } from './lib/tailscale.js'
+import { machinePresence } from './lib/peers.js'
+import { APP_PAGE_HTML } from './lib/app-page.js'
 
 export const name = 'phone-connect'
 export const inject = ['connection']
@@ -346,6 +348,34 @@ export class PhoneConnectController {
     return { ok: true, restarting: true }
   }
 
+  // Machine registry for the Remote switchboard: tailnet peers probed for
+  // harness reachability. Probing from THIS Mac proves "reachable from the
+  // Mac" — it cannot prove the phone holds that machine's cookie, so the
+  // page presents these as availability, not signed-in state. Cached for 5s:
+  // the switchboard polls on a 10s loop and probes fan out over the tailnet.
+  async peersPayload() {
+    const now = Date.now()
+    if (this.peersCache !== undefined && now - this.peersCache.at < 5000) return this.peersCache.payload
+    const { selfHost, machines, tailscale } = await machinePresence({})
+    const payload = { ok: true, selfHost, machines, tailscale, checkedAt: new Date(now).toISOString() }
+    this.peersCache = { at: now, payload }
+    return payload
+  }
+
+  async handlePeers() {
+    try {
+      return Response.json(await this.peersPayload())
+    } catch (error) {
+      return Response.json({ ok: false, error: String(error?.message ?? error) }, { status: 500 })
+    }
+  }
+
+  handleApp() {
+    return new Response(APP_PAGE_HTML, {
+      headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+    })
+  }
+
   async handle(request) {
     try {
       this.applyOptions()
@@ -430,5 +460,25 @@ export function apply(ctx, config) {
         fetch: (request) => controller.handle(request),
       }),
     'phone-connect: /api/phone-connect route',
+  )
+  ctx.effect(
+    () =>
+      ctx.connection.fetch.register({
+        path: `${ROUTE_PATH}/peers`,
+        methods: ['GET'],
+        requestBody: 'buffered',
+        fetch: () => controller.handlePeers(),
+      }),
+    'phone-connect: peers route',
+  )
+  ctx.effect(
+    () =>
+      ctx.connection.fetch.register({
+        path: `${ROUTE_PATH}/app`,
+        methods: ['GET'],
+        requestBody: 'buffered',
+        fetch: () => controller.handleApp(),
+      }),
+    'phone-connect: Remote switchboard page',
   )
 }

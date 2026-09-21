@@ -6,9 +6,10 @@ import test from 'node:test'
 import { apply, PhoneConnectController } from '../index.js'
 
 test('the settings namespace validates its own defaults and registers the card API', () => {
-  let registeredSchema, registeredValue, route
+  let registeredSchema, registeredValue
+  const routes = []
   const ctx = {
-    connection: { fetch: { register(value) { route = value } } },
+    connection: { fetch: { register(value) { routes.push(value) } } },
     effect(fn) { fn() },
     inject(names, fn) {
       assert.deepEqual(names, ['settings'])
@@ -24,7 +25,10 @@ test('the settings namespace validates its own defaults and registers the card A
   apply(ctx, { port: 3080, forwardPort: 3081 }) // older installed profile
   assert.equal(registeredValue.stateDir, '')
   assert.deepEqual(registeredSchema(registeredValue), registeredValue)
-  assert.equal(route.path, '/api/phone-connect')
+  assert.deepEqual(
+    routes.map((route) => route.path),
+    ['/api/phone-connect', '/api/phone-connect/peers', '/api/phone-connect/app'],
+  )
   assert.throws(() => registeredSchema({ stateDir: 5 }), /stateDir/)
   assert.throws(() => registeredSchema({ port: 0 }), /port/)
 })

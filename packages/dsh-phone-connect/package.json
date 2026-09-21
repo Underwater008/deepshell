@@ -19,6 +19,8 @@
     "lib/client.js",
     "lib/persistent.js",
     "lib/tailscale.js",
+    "lib/peers.js",
+    "lib/app-page.js",
     "scripts/phone-runtime.mjs"
   ],
   "dsh": {

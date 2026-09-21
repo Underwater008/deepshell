@@ -223,6 +223,11 @@ window.__ModuleLoader__.load({
                 { key: 'h', style: styles.hint },
                 'Edit in ~/.dsh/settings.yaml (web-search-searxng section) or the profile patch layer; changes apply live.',
               ),
+              h(
+                'p',
+                { key: 'alt', style: styles.hint },
+                'Have a DeepSeek API key instead? The harness ships a deepseek-official provider that reuses the key from the Models page (each search bills one deepseek-v4-flash model turn). Switch in ~/.dsh/profiles/web/cordis.patch.yml: set web searchProvider to deepseek-official (keep fetchProvider: http) and remove the web-search-deepseek disabled flag. This card can stay installed alongside.',
+              ),
             ])
           : null,
       ])

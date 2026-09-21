@@ -11,6 +11,12 @@
 //
 // The bundle is hand-written against the harness's client module system
 // (window.__ModuleLoader__), so it ships without a build step.
+//
+// The chrome mirrors the built-in plugin cards (see
+// @deepseek-ai/dsh-client-ui-settings-plugins, and the SearXNG card in
+// packages/dsh-web-search-searxng): an <li> disclosure whose header toggles
+// a body, collapsed by default, styled with the same --dsw-alias-* tokens so
+// it sits indistinguishably in the card list.
 window.__ModuleLoader__.load({
   id: 'dsh-phone-connect',
   factory: function (require) {
@@ -23,6 +29,10 @@ window.__ModuleLoader__.load({
 
     var API = '/api/phone-connect'
     var RESTART_TIMEOUT_MS = 120000
+    var TITLE = 'Remote'
+    var DESCRIPTION =
+      'Use Chrome or Safari on your iPhone from anywhere. Pair once in your preferred browser, then bookmark the page. ' +
+      'Your saved address reconnects after DeepShell restarts; keep the Mac awake and online.'
 
     async function apiStatus() {
       var response = await fetch(API, { headers: { accept: 'application/json' } })
@@ -43,18 +53,44 @@ window.__ModuleLoader__.load({
       return data
     }
 
+    // Token-for-token port of the built-in PluginCard stylesheet
+    // (dsh-client-ui-settings-plugins): card/cardOpen, header, headText,
+    // name, description, chevron/chevronOpen, body. The hover and
+    // focus-visible rules have no inline-style equivalent; the disclosure
+    // still carries aria-expanded for assistive tech.
     var styles = {
       card: {
-        border: '.5px solid var(--dsw-alias-border-l2, #333)',
-        borderRadius: '10px',
+        border: '.5px solid var(--dsw-alias-border-l4, #333)',
+        background: 'var(--dsw-alias-bg-layer-3, transparent)',
+        borderRadius: '16px',
+        listStyle: 'none',
+        transition: 'border-color .16s, background .16s',
+      },
+      cardOpen: {
+        background: 'var(--dsw-alias-bg-layer-2, transparent)',
+        borderColor: 'var(--dsw-alias-label-dimmed, #888)',
+      },
+      header: {
+        appearance: 'none',
+        width: '100%',
+        font: 'inherit',
+        color: 'inherit',
+        textAlign: 'left',
+        cursor: 'pointer',
+        background: 'none',
+        border: 0,
+        borderRadius: '12px',
+        alignItems: 'center',
+        gap: '12px',
         padding: '14px 16px',
         display: 'flex',
-        flexDirection: 'column',
-        gap: '4px',
-        maxWidth: '760px',
       },
-      title: { margin: 0, fontSize: '15px', fontWeight: 600 },
-      description: { margin: '0 0 8px', fontSize: '13px', opacity: 0.7 },
+      headText: { flexDirection: 'column', flex: 1, gap: '4px', minWidth: 0, display: 'flex' },
+      name: { color: 'var(--dsw-alias-label-primary, inherit)', fontSize: '15px', fontWeight: 600, lineHeight: 1.4 },
+      description: { color: 'var(--dsw-alias-label-tertiary, inherit)', fontSize: '13px', lineHeight: 1.5 },
+      chevron: { color: 'var(--dsw-alias-label-tertiary, inherit)', flex: 'none', transition: 'transform .16s', display: 'block' },
+      chevronOpen: { transform: 'rotate(180deg)' },
+      body: { borderTop: '.5px solid var(--dsw-alias-border-l2, #333)', margin: '0 16px', paddingBottom: '12px' },
       row: {
         display: 'flex',
         gap: '8px',
@@ -95,8 +131,15 @@ window.__ModuleLoader__.load({
         color: '#e66',
         wordBreak: 'break-word',
       },
+      // Red dot in the header when a problem exists but the card is closed.
+      badge: {
+        width: '8px',
+        height: '8px',
+        borderRadius: '50%',
+        background: '#e66',
+        flex: 'none',
+      },
       qrWrap: {
-        alignSelf: 'flex-start',
         margin: '10px 0 2px',
         padding: '10px',
         background: '#fff',
@@ -105,6 +148,22 @@ window.__ModuleLoader__.load({
       },
       qr: { width: '220px', height: '220px', imageRendering: 'pixelated' },
       hint: { margin: '8px 0 0', fontSize: '12px', opacity: 0.55 },
+    }
+
+    // 14px outline chevron, matching IconChevronDownOutline14 in the
+    // built-in card header without a client-graph dependency.
+    function Chevron(props) {
+      return h(
+        'svg',
+        { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', 'aria-hidden': true, style: props.style },
+        h('path', {
+          d: 'M3.5 5.25 7 8.75l3.5-3.5',
+          stroke: 'currentColor',
+          strokeWidth: 1.2,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+        }),
+      )
     }
 
     function modeLabel(mode, permanent) {
@@ -133,9 +192,15 @@ window.__ModuleLoader__.load({
       var _setupUrl = useState(null)
       var setupUrl = _setupUrl[0]
       var setSetupUrl = _setupUrl[1]
+      var _open = useState(false)
+      var open = _open[0]
+      var setOpen = _open[1]
 
       // Restart bookkeeping lives in refs: it drives decisions, not rendering.
       var restartRef = useRef({ baseline: null, target: null, startedAt: 0, deadline: 0 })
+      // Tracks the previous problem state so the card pops open only on a
+      // NEW problem — the user can still close it, and the dot stays lit.
+      var problemRef = useRef(false)
 
       function load() {
         return apiStatus().then(
@@ -212,6 +277,21 @@ window.__ModuleLoader__.load({
         [phase],
       )
 
+      // The card is collapsed by default, but failures must not hide inside
+      // the closed disclosure: pop open when a problem appears. If the user
+      // closes it anyway, the header dot (below) stays lit while it lasts.
+      useEffect(
+        function () {
+          var problem =
+            Boolean(error) ||
+            Boolean(snapshot && !snapshot.managed) ||
+            Boolean(snapshot && snapshot.permanent && snapshot.permanent.error)
+          if (problem && !problemRef.current) setOpen(true)
+          problemRef.current = problem
+        },
+        [error, snapshot],
+      )
+
       function act(mode) {
         setPhase('posting')
         setError(null)
@@ -243,6 +323,7 @@ window.__ModuleLoader__.load({
       var mode = snapshot ? snapshot.mode : 'local'
       var managed = snapshot ? snapshot.managed : true
       var permanent = snapshot && snapshot.permanent
+      var problem = Boolean(error) || Boolean(snapshot && !managed) || Boolean(permanent && permanent.error)
 
       function button(label, targetMode, opts) {
         opts = opts || {}
@@ -263,14 +344,7 @@ window.__ModuleLoader__.load({
         )
       }
 
-      var children = [
-        h('h3', { key: 't', style: styles.title }, 'Phone connect (DeepShell)'),
-        h(
-          'p',
-          { key: 'd', style: styles.description },
-          'Use Chrome or Safari on your iPhone from anywhere. Pair once in your preferred browser, then bookmark the page. Your saved address reconnects after DeepShell restarts; keep the Mac awake and online.',
-        ),
-      ]
+      var children = []
 
       if (snapshot && !managed) {
         children.push(
@@ -305,7 +379,7 @@ window.__ModuleLoader__.load({
         }
         if (snapshot.qrDataUrl) {
           children.push(
-            h('div', { key: 'qr', style: styles.qrWrap }, h('img', { src: snapshot.qrDataUrl, alt: 'Phone connect QR code', style: styles.qr })),
+            h('div', { key: 'qr', style: styles.qrWrap }, h('img', { src: snapshot.qrDataUrl, alt: 'Remote pairing QR code', style: styles.qr })),
           )
         }
       }
@@ -386,7 +460,36 @@ window.__ModuleLoader__.load({
         )
       }
 
-      return h('section', { style: styles.card }, children)
+      return h('li', { style: Object.assign({}, styles.card, open ? styles.cardOpen : null) }, [
+        h(
+          'button',
+          {
+            key: 'header',
+            type: 'button',
+            style: styles.header,
+            'aria-expanded': open,
+            'aria-label': (open ? 'Collapse' : 'Expand') + ': ' + TITLE,
+            onClick: function () {
+              setOpen(!open)
+            },
+          },
+          [
+            h('span', { key: 'text', style: styles.headText }, [
+              h('span', { key: 'name', style: styles.name }, TITLE),
+              h('span', { key: 'desc', style: styles.description }, DESCRIPTION),
+            ]),
+            problem && !open
+              ? h('span', {
+                  key: 'badge',
+                  style: styles.badge,
+                  title: error || (permanent && permanent.error) || 'This harness is not managed by DeepShell — expand for details',
+                })
+              : null,
+            h(Chevron, { key: 'chevron', style: Object.assign({}, styles.chevron, open ? styles.chevronOpen : null) }),
+          ],
+        ),
+        open ? h('div', { key: 'body', style: styles.body }, children) : null,
+      ])
     }
 
     var inject = ['slots']

@@ -69,8 +69,8 @@ export const APP_PAGE_HTML = `<!DOCTYPE html>
 
   <div class="section">
     <h2>Add a machine</h2>
-    <p>Install DeepShell on another Mac, sign its Tailscale app into the same account, and enable permanent access on its Settings → Plugins → Phone connect card. It appears in the row above on its own.</p>
-    <p>First time opening a machine on this phone? That machine shows its own pairing QR on its Phone connect card — scan once, then this page's pills take you straight in.</p>
+    <p>Install DeepShell on another Mac, sign its Tailscale app into the same account, and enable permanent access on its Settings → Plugins → Remote card. It appears in the row above on its own.</p>
+    <p>First time opening a machine on this phone? That machine shows its own pairing QR on its Remote card — scan once, then this page's pills take you straight in.</p>
   </div>
 
   <p class="foot">served by dsh-phone-connect · <a href="/">open this Mac's harness</a></p>
@@ -138,7 +138,7 @@ export const APP_PAGE_HTML = `<!DOCTYPE html>
       pairBody.appendChild(hint)
     } else {
       var off = document.createElement('p')
-      off.textContent = 'Phone access is off on this Mac — enable it from Settings → Plugins → Phone connect first.'
+      off.textContent = 'Phone access is off on this Mac — enable it from Settings → Plugins → Remote first.'
       pairBody.appendChild(off)
     }
   }

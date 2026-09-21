@@ -95,7 +95,7 @@ back.
 
 ### Phone connect from the web UI (Settings card)
 
-Phone access is also available on the **Settings → Plugins → Phone connect**
+Phone access is also available on the **Settings → Plugins → Remote**
 card (`packages/dsh-phone-connect`), installed automatically by `deepshell.sh install`:
 
 ```bash

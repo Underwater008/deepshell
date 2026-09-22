@@ -70,7 +70,7 @@ var
 begin
   { stop.js kills the harness by command-line match, wherever it runs from }
   Exec(ExpandConstant('{sys}\wscript.exe'), '//nologo "' + ExpandConstant('{tmp}\stop.js') + '"',
-       '', swHide, ewWaitUntilTerminated, ResultCode);
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 procedure InitializeSetup;

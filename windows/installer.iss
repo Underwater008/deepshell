@@ -47,7 +47,6 @@ Source: "..\build\payload\app\*"; DestDir: "{app}\app"; Flags: recursesubdirs cr
 Source: "..\build\payload\version.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "launcher\launcher.js"; DestDir: "{app}"; Flags: ignoreversion
 Source: "launcher\stop.js"; DestDir: "{app}"; Flags: ignoreversion
-Source: "launcher\stop.js"; Flags: dontcopy
 
 [Icons]
 Name: "{group}\DeepShell"; Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\launcher.js"""; WorkingDir: "{app}"; Comment: "Open DeepShell"
@@ -68,15 +67,14 @@ procedure StopHarness;
 var
   ResultCode: Integer;
 begin
-  { stop.js kills the harness by command-line match, wherever it runs from }
-  Exec(ExpandConstant('{sys}\wscript.exe'), '//nologo "' + ExpandConstant('{tmp}\stop.js') + '"',
+  { Kill a running harness from a previous install by command-line match.
+    PowerShell -NonInteractive: errors exit silently, no dialog can ever
+    block the (possibly silent) install. Best-effort; ResultCode ignored. }
+  Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+       '-NoProfile -NonInteractive -WindowStyle Hidden -Command "Get-CimInstance Win32_Process | ' +
+       'Where-Object { $_.Name -eq ''node.exe'' -and $_.CommandLine -match ''--port 3080'' -and ' +
+       '$_.CommandLine -match ''@deepseek-ai'' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"',
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-end;
-
-function InitializeSetup: Boolean;
-begin
-  ExtractTemporaryFile('stop.js');
-  Result := True;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;

@@ -42,7 +42,18 @@ jobs:
 
       - name: Smoke test (install → launch → assert → stop → uninstall)
         shell: pwsh
+        timeout-minutes: 25
         run: windows/smoke-test.ps1
+
+      - name: Upload smoke-test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-logs
+          path: |
+            dist/install.log
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4

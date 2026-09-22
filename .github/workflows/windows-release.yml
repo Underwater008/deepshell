@@ -74,7 +74,9 @@ jobs:
         with:
           files: dist/DeepShell-Setup.exe
           generate_release_notes: true
-          prerelease: true
+          # Regular (non-prerelease) so /releases/latest/download/DeepShell-Setup.exe
+          # — the README's download button — always serves the newest build.
+          prerelease: false
           body: |
             Windows installer for DeepShell — a shell for the official DeepSeek Harness.
             Bundles a portable Node.js runtime and the upstream harness; no admin

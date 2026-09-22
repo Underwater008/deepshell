@@ -1,7 +1,10 @@
 # DeepShell
 
-**A native macOS shell for the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).**
-~150 lines of Swift + one bash script.
+**A native shell for the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — macOS app + Windows installer (preview).**
+~150 lines of Swift + one bash script on the Mac; a zero-click installer on Windows.
+
+[![⬇️ Download for Windows](https://img.shields.io/badge/%E2%AC%87%EF%B8%8F_Download_for_Windows-DeepShell--Setup.exe-2563eb?style=for-the-badge)](https://github.com/Underwater008/deepshell/releases/latest/download/DeepShell-Setup.exe)
+[![windows-release](https://github.com/Underwater008/deepshell/actions/workflows/windows-release.yml/badge.svg)](https://github.com/Underwater008/deepshell/actions/workflows/windows-release.yml)
 
 Deep**SH**ell — `dsh` — a seashell for the deep. The homage is the point: it says
 exactly what it is.
@@ -32,15 +35,19 @@ exactly what it is.
 
 ## Install
 
-**Windows (preview):** download `DeepShell-Setup.exe` from the
-[Releases page](https://github.com/Underwater008/deepshell/releases) — a
-per-user installer with the harness and a portable Node runtime bundled, no
-terminal or admin rights needed. See [WINDOWS.md](WINDOWS.md) for setup,
-including the Modal two-header key. The macOS extras (native app, phone
-connect) are not part of the Windows preview.
+### Windows (preview)
 
-**macOS:** requires macOS 12+ (Apple Silicon), Node (via nvm or Homebrew),
-and optionally `qrencode` plus the Tailscale macOS app for phone connect. No
+**[⬇️ Download DeepShell-Setup.exe](https://github.com/Underwater008/deepshell/releases/latest/download/DeepShell-Setup.exe)**
+— one exe, no terminal, no admin: the official harness plus a portable Node
+runtime, installed per-user. Double-click → one progress bar → DeepShell
+opens in its own app window. Setup details, including the Modal two-header
+key, in [WINDOWS.md](WINDOWS.md). The macOS extras (native app, phone
+connect) are not part of the Windows preview yet.
+
+### macOS
+
+Requires macOS 12+ (Apple Silicon), Node (via nvm or Homebrew), and
+optionally `qrencode` plus the Tailscale macOS app for phone connect. No
 iPhone app or purchased domain is needed.
 
 ```bash
@@ -289,7 +296,9 @@ Modal issued them, or keep the joined pair in an env var referenced with
 - [ ] First-run guided setup (install Node/engine without Terminal)
 - [ ] Sparkle auto-updates
 - [ ] Provider preset gallery (RunPod, Modal, vLLM, Ollama, …)
-- [ ] Windows/Linux only if the community actually wants it
+- [x] Windows preview: zero-click installer + app-mode window (see [WINDOWS.md](WINDOWS.md))
+- [ ] Windows: code signing (kills SmartScreen), MSIX/Store install, auto-update
+- [ ] Linux only if the community actually wants it
 
 ## Legal
 

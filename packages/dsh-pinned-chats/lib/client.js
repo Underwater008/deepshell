@@ -118,15 +118,17 @@ window.__ModuleLoader__.load({
           h('line', { x1: 6.2, y1: 8.6, x2: 9.8, y2: 8.6 }))
       }
       if (props.name === 'pin') {
-        // Classic thumbtack, point down: solid fill while pinned, hollow
-        // outline while unpinned.
+        // Classic thumbtack tilted 45° (head up-right, point down-left):
+        // solid fill while pinned, hollow outline while unpinned. The 0.92
+        // scale keeps the rotated glyph inside the 16x16 box.
         var pinStroke = { stroke: 'currentColor', strokeWidth: props.filled ? 1.4 : 1.2, strokeLinejoin: 'round', strokeLinecap: 'round' }
         return h('svg', Object.assign({}, base, { className: 'pinsb_pinSvg' }),
-          h('path', Object.assign({
-            d: 'M6 7.17a1.33 1.33 0 0 1-.74 1.19l-1.19.6a1.33 1.33 0 0 0-.74 1.19v.51a.67.67 0 0 0 .67.67h8a.67.67 0 0 0 .67-.67v-.51a1.33 1.33 0 0 0-.74-1.19l-1.19-.6A1.33 1.33 0 0 1 10 7.17V3.33a1.33 1.33 0 0 1 1.33-1.33.67.67 0 0 0 0-1.33H4.67a.67.67 0 0 0 0 1.33A1.33 1.33 0 0 1 6 3.33z',
-            fill: props.filled ? 'currentColor' : 'none',
-          }, pinStroke)),
-          h('line', Object.assign({ x1: 8, y1: 11.33, x2: 8, y2: 14.67 }, pinStroke)))
+          h('g', { transform: 'translate(8 8) rotate(45) scale(0.92) translate(-8 -8)' },
+            h('path', Object.assign({
+              d: 'M6 7.17a1.33 1.33 0 0 1-.74 1.19l-1.19.6a1.33 1.33 0 0 0-.74 1.19v.51a.67.67 0 0 0 .67.67h8a.67.67 0 0 0 .67-.67v-.51a1.33 1.33 0 0 0-.74-1.19l-1.19-.6A1.33 1.33 0 0 1 10 7.17V3.33a1.33 1.33 0 0 1 1.33-1.33.67.67 0 0 0 0-1.33H4.67a.67.67 0 0 0 0 1.33A1.33 1.33 0 0 1 6 3.33z',
+              fill: props.filled ? 'currentColor' : 'none',
+            }, pinStroke)),
+            h('line', Object.assign({ x1: 8, y1: 11.33, x2: 8, y2: 14.67 }, pinStroke))))
       }
       if (props.name === 'close') {
         return h('svg', Object.assign({}, base, { stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' }),

@@ -77,8 +77,11 @@ if (-not $DshVersion) {
   # The lockfile is the whole known-good tree, exact and reproducible.
   Copy-Item (Join-Path $root "windows\payload-lock\package.json") $appDir
   Copy-Item (Join-Path $root "windows\payload-lock\package-lock.json") $appDir
-  $lock = Get-Content (Join-Path $appDir "package-lock.json") -Raw | ConvertFrom-Json
-  $DshVersion = $lock.packages.'node_modules/@deepseek-ai/dsh'.version
+  # Extract the locked harness version. (ConvertFrom-Json chokes on the
+  # lockfile's empty-string root key on some PowerShell versions; the entry
+  # shape npm writes is stable, so a targeted regex is the robust read.)
+  $lockText = Get-Content (Join-Path $appDir "package-lock.json") -Raw
+  $DshVersion = [regex]::Match($lockText, '"node_modules/@deepseek-ai/dsh":\s*\{\s*"version":\s*"([^"]+)"').Groups[1].Value
   if (-not $DshVersion) { throw "payload-lock\package-lock.json has no @deepseek-ai/dsh entry" }
   Write-Host "installing the LOCKED harness tree (@deepseek-ai/dsh@$DshVersion) into payload\app..."
   & $nodeExe $npmCli ci --prefix $appDir --omit=dev --no-audit --no-fund --loglevel=error

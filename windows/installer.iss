@@ -33,13 +33,18 @@ SolidCompression=yes
 WizardStyle=modern
 CloseApplications=no
 UninstallDisplayName=DeepShell
+; Seamless, Store-style install (Codex/ChatGPT precedent): no wizard pages at
+; all. Double-click -> progress bar -> done -> app opens. No questions, no
+; decisions: Start Menu entry and start-at-sign-in are on by default (the
+; same lifecycle the macOS launchd service has), launch happens automatically.
+DisableWelcomePage=yes
+DisableDirPage=yes
+DisableProgramGroupPage=yes
+DisableReadyPage=yes
+DisableFinishedPage=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
-
-[Tasks]
-Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
-Name: "autostart"; Description: "Start DeepShell at sign-in (recommended; closing the browser tab does not stop it)"; GroupDescription: "Startup:"
 
 [Files]
 Source: "..\build\payload\node\*"; DestDir: "{app}\node"; Flags: recursesubdirs createallsubdirs ignoreversion
@@ -51,13 +56,12 @@ Source: "launcher\stop.js"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{group}\DeepShell"; Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\launcher.js"""; WorkingDir: "{app}"; Comment: "Open DeepShell"
 Name: "{group}\Stop DeepShell"; Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\stop.js"""; WorkingDir: "{app}"
-Name: "{autodesktop}\DeepShell"; Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\launcher.js"""; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "DeepShell"; ValueType: string; ValueData: """{sys}\wscript.exe"" //nologo ""{app}\launcher.js"""; Tasks: autostart; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "DeepShell"; ValueType: string; ValueData: """{sys}\wscript.exe"" //nologo ""{app}\launcher.js"""; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\launcher.js"""; WorkingDir: "{app}"; Description: "Launch DeepShell now"; Flags: postinstall nowait skipifsilent
+Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\launcher.js"""; WorkingDir: "{app}"; Flags: nowait skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\run"

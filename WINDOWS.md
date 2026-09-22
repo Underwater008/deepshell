@@ -17,8 +17,10 @@ the roadmap at the bottom.
 2. Run it. Windows SmartScreen may show "Windows protected your PC" because
    the installer is not code-signed: click **More info → Run anyway**. This
    is expected and harmless.
-3. Choose optional desktop shortcut / start-at-sign-in, finish, and keep
-   **Launch DeepShell now** checked.
+3. That's it. No wizard, no questions — one progress bar and DeepShell
+   opens. It installs per-user to `%LOCALAPPDATA%\DeepShell`, puts itself in
+   the Start Menu, and starts at sign-in (turn that off any time via
+   Task Manager → Startup apps → DeepShell).
 
 DeepShell installs to `%LOCALAPPDATA%\DeepShell` (per-user), starts the
 harness hidden, and opens the web UI in its own **app-mode window** — no

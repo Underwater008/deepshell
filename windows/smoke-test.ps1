@@ -35,14 +35,16 @@ function Show-Diagnostics {
 }
 
 # Run one external process with a hard timeout; dump logs and fail on overrun.
+# (WaitForExit returns a real bool — Wait-Process returns nothing either way.)
 function Invoke-Watched($file, [string[]]$arguments, [int]$timeoutSec, [string]$what) {
   $p = Start-Process $file -ArgumentList $arguments -PassThru
-  if (-not (Wait-Process -Id $p.Id -Timeout $timeoutSec -ErrorAction SilentlyContinue)) {
+  if (-not $p.WaitForExit($timeoutSec * 1000)) {
     Write-Host "SMOKE FAIL: $what did not finish within $timeoutSec s" -ForegroundColor Red
     Show-Diagnostics
     Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
     exit 1
   }
+  $p.Refresh()
   return $p.ExitCode
 }
 

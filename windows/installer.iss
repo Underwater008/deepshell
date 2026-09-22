@@ -73,9 +73,10 @@ begin
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
-procedure InitializeSetup;
+function InitializeSetup: Boolean;
 begin
   ExtractTemporaryFile('stop.js');
+  Result := True;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;

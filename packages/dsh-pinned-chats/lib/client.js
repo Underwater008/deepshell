@@ -9,9 +9,8 @@
 //
 //   - a "Pinned" section of pinned chats above everything;
 //   - pinned projects float to the top of the group list;
-//   - one pin toggle per chat row / project header: solid and always visible
-//     while pinned, hollow and hover-revealed otherwise; pin/unpin entries
-//     in the ⋯ menus;
+//   - one hover-revealed pin toggle per chat row / project header: solid
+//     while pinned, hollow otherwise; pin/unpin entries in the ⋯ menus;
 //   - pin state fetched/persisted through the host half's /api/pins routes
 //     (durable storage domain on the Host, shared by every browser session).
 //
@@ -64,13 +63,11 @@ window.__ModuleLoader__.load({
       '.pinsb_time{color:var(--dsw-alias-label-tertiary);flex:none;font-size:12px;line-height:20px}',
       '.pinsb_meta{text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:20px;overflow:hidden;flex:none;max-width:40%}',
       '.pinsb_count{color:var(--dsw-alias-label-tertiary);flex:none;font-size:12px;line-height:20px}',
-      '.pinsb_rowActions{flex:none;align-items:center;gap:12px;display:inline-flex;margin-left:auto}',
-      // Action buttons stay hidden until hover/menu-open — except the pin
-      // toggle on a pinned row, which stays visible (solid) as the one and
-      // only pinned marker.
-      '.pinsb_rowActions .pinsb_iconBtn{display:none}',
-      '.pinsb_rowActions .pinsb_iconBtn.pinsb_pinned{display:inline-flex;color:var(--dsw-alias-label-primary)}',
-      '.pinsb_projectRow:hover .pinsb_rowActions .pinsb_iconBtn,.pinsb_sessionRow:hover .pinsb_rowActions .pinsb_iconBtn,.pinsb_projectRow.pinsb_menuOpen .pinsb_rowActions .pinsb_iconBtn,.pinsb_sessionRow.pinsb_menuOpen .pinsb_rowActions .pinsb_iconBtn{display:inline-flex}',
+      // Action buttons stay hidden until hover/menu-open. Pinned rows get
+      // no permanent marker: the Pinned section already groups them, and
+      // the hover toggle alone shows the state (solid = pinned).
+      '.pinsb_rowActions{flex:none;align-items:center;gap:12px;display:none;margin-left:auto}',
+      '.pinsb_projectRow:hover .pinsb_rowActions,.pinsb_sessionRow:hover .pinsb_rowActions,.pinsb_projectRow.pinsb_menuOpen .pinsb_rowActions,.pinsb_sessionRow.pinsb_menuOpen .pinsb_rowActions{display:inline-flex}',
       '.pinsb_sessionRow:hover .pinsb_time,.pinsb_sessionRow.pinsb_menuOpen .pinsb_time{display:none}',
       '.pinsb_projectRow:hover .pinsb_count,.pinsb_projectRow.pinsb_menuOpen .pinsb_count{display:none}',
       '.pinsb_arrow{transition:transform .15s var(--ds-ease-in-out,ease)}',
@@ -304,7 +301,7 @@ window.__ModuleLoader__.load({
           !props.renaming ? h('span', { className: 'pinsb_time' }, relTime(s.updatedAt)) : null,
           h('span', { className: 'pinsb_rowActions' },
             h('button', {
-              className: 'pinsb_iconBtn pinsb_pinBtn' + (props.pinned ? ' pinsb_pinned' : ''),
+              className: 'pinsb_iconBtn',
               title: props.pinned ? 'Unpin chat' : 'Pin chat',
               onClick: function (e) { e.stopPropagation(); props.onTogglePin('session', s.id) },
             }, h(Icon, { name: 'pin', filled: props.pinned })),
@@ -330,7 +327,7 @@ window.__ModuleLoader__.load({
           h('span', { className: 'pinsb_count' }, String(props.count)),
           h('span', { className: 'pinsb_rowActions' },
             h('button', {
-              className: 'pinsb_iconBtn pinsb_pinBtn' + (props.pinned ? ' pinsb_pinned' : ''),
+              className: 'pinsb_iconBtn',
               title: props.pinned ? 'Unpin project' : 'Pin project',
               onClick: function (e) { e.stopPropagation(); props.onTogglePin('workspace', props.workspaceId) },
             }, h(Icon, { name: 'pin', filled: props.pinned })),

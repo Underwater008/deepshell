@@ -68,6 +68,7 @@ jobs:
         with:
           files: dist/DeepShell-Setup.exe
           generate_release_notes: true
+          prerelease: true
           body: |
             Windows installer for DeepShell — a shell for the official DeepSeek Harness.
             Bundles a portable Node.js runtime and the upstream harness; no admin

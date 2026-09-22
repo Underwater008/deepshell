@@ -1,0 +1,65 @@
+# windows-release.yml — build, smoke-test, and publish the DeepShell Windows
+# installer (DeepShell-Setup.exe).
+#
+#   * Manual: Actions → windows-release → Run workflow (optionally pin the
+#     harness version). The installer is attached as a workflow artifact.
+#   * Release: push a tag named win-v* (e.g. win-v0.1.0) — the workflow
+#     smoke-tests the installer, then creates a GitHub Release with it.
+#
+# Inno Setup 6 is preinstalled on GitHub's windows runners. The smoke test
+# runs the real flow — silent install, wscript launch, HTTP 200 with the
+# token URL, stop, clean uninstall — before anything is published.
+
+name: windows-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dshVersion:
+        description: "@deepseek-ai/dsh version to bundle (npm version, or latest)"
+        required: true
+        default: "latest"
+  push:
+    tags:
+      - "win-v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build payload and installer
+        shell: pwsh
+        run: windows/build.ps1 -DshVersion "${{ github.event.inputs.dshVersion || 'latest' }}"
+
+      - name: Smoke test (install → launch → assert → stop → uninstall)
+        shell: pwsh
+        run: windows/smoke-test.ps1
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeepShell-Setup
+          path: dist/DeepShell-Setup.exe
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/win-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/DeepShell-Setup.exe
+          generate_release_notes: true
+          body: |
+            Windows installer for DeepShell — a shell for the official DeepSeek Harness.
+            Bundles a portable Node.js runtime and the upstream harness; no admin
+            rights or terminal needed. The workflow that built this ran the
+            install → launch → browse → uninstall smoke test before publishing.
+            See WINDOWS.md in the repo for setup (including the Modal two-header key).

@@ -32,9 +32,16 @@ exactly what it is.
 
 ## Install
 
-Requires macOS 12+ (Apple Silicon), Node (via nvm or Homebrew), and optionally
-`qrencode` plus the Tailscale macOS app for phone connect. No iPhone app or
-purchased domain is needed.
+**Windows (preview):** download `DeepShell-Setup.exe` from the
+[Releases page](https://github.com/Underwater008/deepshell/releases) — a
+per-user installer with the harness and a portable Node runtime bundled, no
+terminal or admin rights needed. See [WINDOWS.md](WINDOWS.md) for setup,
+including the Modal two-header key. The macOS extras (native app, phone
+connect) are not part of the Windows preview.
+
+**macOS:** requires macOS 12+ (Apple Silicon), Node (via nvm or Homebrew),
+and optionally `qrencode` plus the Tailscale macOS app for phone connect. No
+iPhone app or purchased domain is needed.
 
 ```bash
 git clone https://github.com/Underwater008/deepshell.git

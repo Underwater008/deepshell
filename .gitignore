@@ -3,6 +3,10 @@ run/
 .DS_Store
 native/DeepShell.app/
 
+# Windows installer build outputs (windows/build.ps1)
+build/
+dist/
+
 # SearXNG runtime copy with live secret_key — regenerated from the template
 # by `deepshell.sh search install`; only settings.yml.template is committed.
 search/settings/settings.yml

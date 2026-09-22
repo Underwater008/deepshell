@@ -437,7 +437,7 @@ phone_wire_profile() {
   # Refresh existing installs as well as new ones before restarting.
   local installed="$profile_dir/node_modules/dsh-phone-connect" file
   mkdir -p "$installed/lib"
-  for file in package.json index.js lib/client.js lib/persistent.js lib/tailscale.js; do
+  for file in package.json index.js lib/client.js lib/persistent.js lib/tailscale.js lib/peers.js lib/app-page.js; do
     if ! cmp -s "$repo_dir/packages/dsh-phone-connect/$file" "$installed/$file"; then
       cp "$repo_dir/packages/dsh-phone-connect/$file" "$installed/$file"
     fi

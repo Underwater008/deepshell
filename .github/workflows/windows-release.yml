@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       dshVersion:
-        description: "@deepseek-ai/dsh version to bundle (empty = windows/dsh-version.txt pin, or latest)"
+        description: "@deepseek-ai/dsh version to bundle (empty = locked payload-lock tree, or latest)"
         required: false
         default: ""
   push:
@@ -38,9 +38,10 @@ jobs:
 
       - name: Build payload and installer
         shell: pwsh
-        # Default (incl. tag builds) pins windows/dsh-version.txt — deliberate,
-        # reproducible upgrades; upstream rc publishes can be broken on npm.
-        # An explicit workflow input (e.g. "latest") overrides the pin.
+        # Default (incl. tag builds) installs the LOCKED harness tree from
+        # windows/payload-lock (npm ci) — reproducible; upstream rc publishes
+        # can be broken on npm. An explicit workflow input (e.g. "latest")
+        # overrides with an unlocked install.
         run: |
           $v = "${{ github.event.inputs.dshVersion }}"
           if ($v) { windows/build.ps1 -DshVersion $v } else { windows/build.ps1 }

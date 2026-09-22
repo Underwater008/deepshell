@@ -33,16 +33,9 @@ function Resolve-NodeLts {
 
 function Resolve-DshVersion {
   param([string]$spec)
-  # Release builds pin a known-good harness (windows\dsh-version.txt) instead
-  # of chasing @latest: upstream rc publishes can be incomplete on npm
-  # (observed: rc.3 referencing a sub-package that was not published yet).
-  # Bump the pin deliberately after a green build. "latest" stays available
-  # for manual workflow dispatches that want bleeding edge.
-  if (-not $spec) {
-    $pin = (Get-Content (Join-Path $PSScriptRoot "dsh-version.txt") -Raw).Trim()
-    if (-not $pin) { throw "windows\dsh-version.txt is empty" }
-    return $pin
-  }
+  # Explicit override path only ("latest" or an exact version): resolves the
+  # npm dist-tag and installs WITHOUT the lock, for bleeding-edge test builds.
+  # Release builds never come through here — they use the locked tree.
   if ($spec -ne "latest") { return $spec }
   $v = (npm view "@deepseek-ai/dsh@latest" version 2>$null | Select-Object -First 1).Trim()
   if (-not $v) { throw "could not resolve @deepseek-ai/dsh@latest from npm" }
@@ -51,10 +44,8 @@ function Resolve-DshVersion {
 
 Write-Host "== DeepShell Windows payload build ==" -ForegroundColor Cyan
 
-# ---- resolve versions -------------------------------------------------------
+# ---- resolve node -----------------------------------------------------------
 if (-not $NodeVersion) { $NodeVersion = Resolve-NodeLts }
-$DshVersion = Resolve-DshVersion $DshVersion
-Write-Host "node: v$NodeVersion ($Arch)   dsh: $DshVersion"
 
 # ---- clean -------------------------------------------------------------------
 Remove-Item -Recurse -Force $build -ErrorAction SilentlyContinue
@@ -77,12 +68,30 @@ if (-not (Test-Path $npmCli))  { throw "portable npm missing at $npmCli" }
 # ---- harness payload -----------------------------------------------------------
 $appDir = Join-Path $payload "app"
 New-Item -ItemType Directory -Force $appDir | Out-Null
-@{ dependencies = @{ "@deepseek-ai/dsh" = $DshVersion } } |
-  ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 (Join-Path $appDir "package.json")
 
-Write-Host "installing @deepseek-ai/dsh@$DshVersion into payload\app (this is the big download)..."
-& $nodeExe $npmCli install --prefix $appDir --omit=dev --no-audit --no-fund --loglevel=error
+if (-not $DshVersion) {
+  # Default, release path: the LOCKED tree (windows\payload-lock). The harness
+  # monorepo versions its sub-packages with ^ ranges, so pinning only the top
+  # package still lets freshly published (possibly broken) rc sub-packages in
+  # — observed when rc.3's tree referenced a sub-package npm did not have.
+  # The lockfile is the whole known-good tree, exact and reproducible.
+  Copy-Item (Join-Path $root "windows\payload-lock\package.json") $appDir
+  Copy-Item (Join-Path $root "windows\payload-lock\package-lock.json") $appDir
+  $lock = Get-Content (Join-Path $appDir "package-lock.json") -Raw | ConvertFrom-Json
+  $DshVersion = $lock.packages.'node_modules/@deepseek-ai/dsh'.version
+  if (-not $DshVersion) { throw "payload-lock\package-lock.json has no @deepseek-ai/dsh entry" }
+  Write-Host "installing the LOCKED harness tree (@deepseek-ai/dsh@$DshVersion) into payload\app..."
+  & $nodeExe $npmCli ci --prefix $appDir --omit=dev --no-audit --no-fund --loglevel=error
+} else {
+  # Explicit override (manual dispatch): resolve and install without the lock.
+  $DshVersion = Resolve-DshVersion $DshVersion
+  @{ dependencies = @{ "@deepseek-ai/dsh" = $DshVersion } } |
+    ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 (Join-Path $appDir "package.json")
+  Write-Host "installing @deepseek-ai/dsh@$DshVersion (unlocked) into payload\app..."
+  & $nodeExe $npmCli install --prefix $appDir --omit=dev --no-audit --no-fund --loglevel=error
+}
 if ($LASTEXITCODE -ne 0) { throw "npm install failed ($LASTEXITCODE)" }
+Write-Host "node: v$NodeVersion ($Arch)   dsh: $DshVersion"
 
 $dshBin = Join-Path $appDir "node_modules\@deepseek-ai\dsh\lib\bin.js"
 if (-not (Test-Path $dshBin)) { throw "harness CLI missing at $dshBin" }

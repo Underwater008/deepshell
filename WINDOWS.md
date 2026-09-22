@@ -21,12 +21,14 @@ the roadmap at the bottom.
    **Launch DeepShell now** checked.
 
 DeepShell installs to `%LOCALAPPDATA%\DeepShell` (per-user), starts the
-harness hidden, and opens the web UI in your default browser. Bookmark the
-page — the address contains a per-launch token. Clicking the shortcut again
-while it's running just reopens the UI.
+harness hidden, and opens the web UI in its own **app-mode window** — no
+tabs, no address bar, its own taskbar icon (via Edge, which ships with
+Windows; Chrome works too, and anything else falls back to a normal browser
+tab). It feels like a desktop app even though the UI is web. Clicking the
+shortcut again while it's running just reopens the window.
 
-**Stop** via Start Menu → DeepShell → *Stop DeepShell*. Closing the browser
-tab does not stop the harness (same as closing the window on macOS).
+**Stop** via Start Menu → DeepShell → *Stop DeepShell*. Closing the window
+does not stop the harness (same as closing the window on macOS).
 Uninstall from Settings → Apps as usual; stopping and cleanup are automatic.
 
 ## Provider setup (including Modal's two-header key)

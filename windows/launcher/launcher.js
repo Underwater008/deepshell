@@ -51,6 +51,24 @@ function currentUrl() {
 }
 
 function openBrowser(url) {
+  // App-mode first: a chromeless window with its own taskbar icon — no tabs,
+  // no address bar — so DeepShell feels like a desktop app, not a website.
+  // Edge ships with Windows 10/11; Chrome next; default browser tab last.
+  var candidates = [
+    sh.ExpandEnvironmentStrings("%ProgramFiles(x86)%") + "\\Microsoft\\Edge\\Application\\msedge.exe",
+    sh.ExpandEnvironmentStrings("%ProgramFiles%") + "\\Microsoft\\Edge\\Application\\msedge.exe",
+    sh.ExpandEnvironmentStrings("%ProgramFiles%") + "\\Google\\Chrome\\Application\\chrome.exe",
+    sh.ExpandEnvironmentStrings("%ProgramFiles(x86)%") + "\\Google\\Chrome\\Application\\chrome.exe",
+    sh.ExpandEnvironmentStrings("%LocalAppData%") + "\\Google\\Chrome\\Application\\chrome.exe"
+  ];
+  for (var i = 0; i < candidates.length; i++) {
+    if (fso.FileExists(candidates[i])) {
+      try {
+        sh.Run('"' + candidates[i] + '" --app="' + url + '"', 1, false);
+        return;
+      } catch (err) {}
+    }
+  }
   // rundll32 handoff: no console, no quoting surprises, uses the default browser.
   sh.Run("rundll32 url.dll,FileProtocolHandler " + url, 0, false);
 }

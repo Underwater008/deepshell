@@ -9,7 +9,8 @@
 //
 //   - a "Pinned" section of pinned chats above everything;
 //   - pinned projects float to the top of the group list;
-//   - hover pin toggles on chat rows and project headers, pin/unpin entries
+//   - one pin toggle per chat row / project header: solid and always visible
+//     while pinned, hollow and hover-revealed otherwise; pin/unpin entries
 //     in the ⋯ menus;
 //   - pin state fetched/persisted through the host half's /api/pins routes
 //     (durable storage domain on the Host, shared by every browser session).
@@ -60,12 +61,16 @@ window.__ModuleLoader__.load({
       '@keyframes pinsb_chase{0%,12.4%{opacity:1}12.5%,24.9%{opacity:.6}25%,37.4%{opacity:.35}37.5%,to{opacity:.15}}',
       '.pinsb_title{text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:14px;line-height:20px;overflow:hidden;flex:1}',
       '.pinsb_sessionRow .pinsb_title{margin:0 6px 0 4px}',
-      '.pinsb_titlePin{flex:none;color:var(--dsw-alias-label-tertiary);display:inline-flex;margin-left:2px}',
       '.pinsb_time{color:var(--dsw-alias-label-tertiary);flex:none;font-size:12px;line-height:20px}',
       '.pinsb_meta{text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:20px;overflow:hidden;flex:none;max-width:40%}',
       '.pinsb_count{color:var(--dsw-alias-label-tertiary);flex:none;font-size:12px;line-height:20px}',
-      '.pinsb_rowActions{flex:none;align-items:center;gap:12px;display:none;margin-left:auto}',
-      '.pinsb_projectRow:hover .pinsb_rowActions,.pinsb_sessionRow:hover .pinsb_rowActions,.pinsb_projectRow.pinsb_menuOpen .pinsb_rowActions,.pinsb_sessionRow.pinsb_menuOpen .pinsb_rowActions{display:inline-flex}',
+      '.pinsb_rowActions{flex:none;align-items:center;gap:12px;display:inline-flex;margin-left:auto}',
+      // Action buttons stay hidden until hover/menu-open — except the pin
+      // toggle on a pinned row, which stays visible (solid) as the one and
+      // only pinned marker.
+      '.pinsb_rowActions .pinsb_iconBtn{display:none}',
+      '.pinsb_rowActions .pinsb_iconBtn.pinsb_pinned{display:inline-flex;color:var(--dsw-alias-label-primary)}',
+      '.pinsb_projectRow:hover .pinsb_rowActions .pinsb_iconBtn,.pinsb_sessionRow:hover .pinsb_rowActions .pinsb_iconBtn,.pinsb_projectRow.pinsb_menuOpen .pinsb_rowActions .pinsb_iconBtn,.pinsb_sessionRow.pinsb_menuOpen .pinsb_rowActions .pinsb_iconBtn{display:inline-flex}',
       '.pinsb_sessionRow:hover .pinsb_time,.pinsb_sessionRow.pinsb_menuOpen .pinsb_time{display:none}',
       '.pinsb_projectRow:hover .pinsb_count,.pinsb_projectRow.pinsb_menuOpen .pinsb_count{display:none}',
       '.pinsb_arrow{transition:transform .15s var(--ds-ease-in-out,ease)}',
@@ -116,10 +121,15 @@ window.__ModuleLoader__.load({
           h('line', { x1: 6.2, y1: 8.6, x2: 9.8, y2: 8.6 }))
       }
       if (props.name === 'pin') {
+        // Classic thumbtack, point down: solid fill while pinned, hollow
+        // outline while unpinned.
+        var pinStroke = { stroke: 'currentColor', strokeWidth: props.filled ? 1.4 : 1.2, strokeLinejoin: 'round', strokeLinecap: 'round' }
         return h('svg', Object.assign({}, base, { className: 'pinsb_pinSvg' }),
-          h('g', { transform: 'rotate(45 8 8)', fill: props.filled ? 'currentColor' : 'none', stroke: 'currentColor', strokeWidth: 1.3, strokeLinejoin: 'round' },
-            h('rect', { x: 5.4, y: 1.8, width: 5.2, height: 4.4, rx: 2.2 }),
-            h('path', { d: 'M7.1 6.2 L8 14.2 L8.9 6.2 Z' })))
+          h('path', Object.assign({
+            d: 'M6 7.17a1.33 1.33 0 0 1-.74 1.19l-1.19.6a1.33 1.33 0 0 0-.74 1.19v.51a.67.67 0 0 0 .67.67h8a.67.67 0 0 0 .67-.67v-.51a1.33 1.33 0 0 0-.74-1.19l-1.19-.6A1.33 1.33 0 0 1 10 7.17V3.33a1.33 1.33 0 0 1 1.33-1.33.67.67 0 0 0 0-1.33H4.67a.67.67 0 0 0 0 1.33A1.33 1.33 0 0 1 6 3.33z',
+            fill: props.filled ? 'currentColor' : 'none',
+          }, pinStroke)),
+          h('line', Object.assign({ x1: 8, y1: 11.33, x2: 8, y2: 14.67 }, pinStroke)))
       }
       if (props.name === 'close') {
         return h('svg', Object.assign({}, base, { stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' }),
@@ -290,12 +300,11 @@ window.__ModuleLoader__.load({
                 onCancel: function () { props.onRenameCancel() },
               })
             : h('span', { className: 'pinsb_title', title: title }, title),
-          props.pinned && !props.renaming ? h('span', { className: 'pinsb_titlePin', title: 'Pinned' }, h(Icon, { name: 'pin', filled: true })) : null,
           props.meta ? h('span', { className: 'pinsb_meta' }, props.meta) : null,
           !props.renaming ? h('span', { className: 'pinsb_time' }, relTime(s.updatedAt)) : null,
           h('span', { className: 'pinsb_rowActions' },
             h('button', {
-              className: 'pinsb_iconBtn',
+              className: 'pinsb_iconBtn pinsb_pinBtn' + (props.pinned ? ' pinsb_pinned' : ''),
               title: props.pinned ? 'Unpin chat' : 'Pin chat',
               onClick: function (e) { e.stopPropagation(); props.onTogglePin('session', s.id) },
             }, h(Icon, { name: 'pin', filled: props.pinned })),
@@ -318,11 +327,10 @@ window.__ModuleLoader__.load({
                 onCancel: function () { props.onRenameCancel() },
               })
             : h('span', { className: 'pinsb_title', title: props.subtitle || props.label }, props.label),
-          props.pinned ? h('span', { className: 'pinsb_titlePin', title: 'Pinned' }, h(Icon, { name: 'pin', filled: true })) : null,
           h('span', { className: 'pinsb_count' }, String(props.count)),
           h('span', { className: 'pinsb_rowActions' },
             h('button', {
-              className: 'pinsb_iconBtn',
+              className: 'pinsb_iconBtn pinsb_pinBtn' + (props.pinned ? ' pinsb_pinned' : ''),
               title: props.pinned ? 'Unpin project' : 'Pin project',
               onClick: function (e) { e.stopPropagation(); props.onTogglePin('workspace', props.workspaceId) },
             }, h(Icon, { name: 'pin', filled: props.pinned })),

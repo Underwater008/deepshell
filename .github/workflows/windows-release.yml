@@ -16,9 +16,9 @@ on:
   workflow_dispatch:
     inputs:
       dshVersion:
-        description: "@deepseek-ai/dsh version to bundle (npm version, or latest)"
-        required: true
-        default: "latest"
+        description: "@deepseek-ai/dsh version to bundle (empty = windows/dsh-version.txt pin, or latest)"
+        required: false
+        default: ""
   push:
     tags:
       - "win-v*"
@@ -38,7 +38,12 @@ jobs:
 
       - name: Build payload and installer
         shell: pwsh
-        run: windows/build.ps1 -DshVersion "${{ github.event.inputs.dshVersion || 'latest' }}"
+        # Default (incl. tag builds) pins windows/dsh-version.txt — deliberate,
+        # reproducible upgrades; upstream rc publishes can be broken on npm.
+        # An explicit workflow input (e.g. "latest") overrides the pin.
+        run: |
+          $v = "${{ github.event.inputs.dshVersion }}"
+          if ($v) { windows/build.ps1 -DshVersion $v } else { windows/build.ps1 }
 
       - name: Smoke test (install → launch → assert → stop → uninstall)
         shell: pwsh

@@ -13,7 +13,7 @@
 
 [CmdletBinding()]
 param(
-  [string]$DshVersion = "latest",
+  [string]$DshVersion = "",         # empty = pinned windows\dsh-version.txt; "latest" = npm dist-tag
   [string]$NodeVersion = "",        # empty = latest LTS from nodejs.org
   [string]$Arch = "x64"
 )
@@ -33,6 +33,16 @@ function Resolve-NodeLts {
 
 function Resolve-DshVersion {
   param([string]$spec)
+  # Release builds pin a known-good harness (windows\dsh-version.txt) instead
+  # of chasing @latest: upstream rc publishes can be incomplete on npm
+  # (observed: rc.3 referencing a sub-package that was not published yet).
+  # Bump the pin deliberately after a green build. "latest" stays available
+  # for manual workflow dispatches that want bleeding edge.
+  if (-not $spec) {
+    $pin = (Get-Content (Join-Path $PSScriptRoot "dsh-version.txt") -Raw).Trim()
+    if (-not $pin) { throw "windows\dsh-version.txt is empty" }
+    return $pin
+  }
   if ($spec -ne "latest") { return $spec }
   $v = (npm view "@deepseek-ai/dsh@latest" version 2>$null | Select-Object -First 1).Trim()
   if (-not $v) { throw "could not resolve @deepseek-ai/dsh@latest from npm" }

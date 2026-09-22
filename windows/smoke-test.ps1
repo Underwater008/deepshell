@@ -76,9 +76,12 @@ $tokenUrl = $null
 foreach ($i in 1..240) {   # up to 120 s: first boot composes the web profile
   Start-Sleep -Milliseconds 500
   if (Test-Path $log) {
-    $m = [regex]::Match((Get-Content $log -Raw -ErrorAction SilentlyContinue),
-                        'http://127\.0\.0\.1:\d+/\?token=[A-Za-z0-9_-]+')
-    if ($m.Success) { $tokenUrl = $m.Value; break }
+    # -Raw on an empty file yields $null, and [regex]::Match($null, ...) throws
+    $content = Get-Content $log -Raw -ErrorAction SilentlyContinue
+    if ($content) {
+      $m = [regex]::Match($content, 'http://127\.0\.0\.1:\d+/\?token=[A-Za-z0-9_-]+')
+      if ($m.Success) { $tokenUrl = $m.Value; break }
+    }
   }
 }
 Assert ($null -ne $tokenUrl) "harness printed its token URL (log: $log)"
@@ -98,10 +101,16 @@ Assert (-not $harness) "no harness process remains after stop"
 # ---- uninstall ------------------------------------------------------------------
 $unins = Get-ChildItem $appDir -Filter "unins*.exe" | Select-Object -First 1
 Assert ($null -ne $unins) "uninstaller present"
-$rc = Invoke-Watched $unins.FullName @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART") 300 "uninstaller"
-Assert ($rc -eq 0) "uninstaller exit code 0 (got $rc)"
-Start-Sleep -Seconds 3
-Assert (-not (Test-Path (Join-Path $appDir "app"))) "install directory removed"
+# Inno uninstallers hand off to a second-phase process and the launcher exits
+# immediately — poll for the payload's disappearance instead of trusting one
+# exit code (deleting tens of thousands of files takes a while).
+$rc = Invoke-Watched $unins.FullName @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART") 60 "uninstaller (first phase)"
+$payloadGone = $false
+foreach ($i in 1..240) {   # up to 120 s
+  Start-Sleep -Milliseconds 500
+  if (-not (Test-Path (Join-Path $appDir "app"))) { $payloadGone = $true; break }
+}
+Assert $payloadGone "install directory removed"
 
 } catch {
   Show-Diagnostics
